@@ -241,31 +241,70 @@ export function useScalpingAI(marketData: MarketData[]) {
     }
   }, []);
 
+  // Real AI-powered scalping analysis
   const generateAIAnalysisWithAI = useCallback(async (data: MarketData[]): Promise<ScalpingAnalysis> => {
     try {
-      // Prepare market data for AI analysis
-      const marketSummary = data.map(item => ({
+      // Prepare comprehensive market data for AI analysis
+      const marketSummary = data.slice(0, 10).map(item => ({
         symbol: item.symbol,
         price: item.price,
         changePercent: item.changePercent,
         volume: item.volume || 0,
-        volatility: Math.abs(item.changePercent)
+        volatility: Math.abs(item.changePercent),
+        spread: item.spread || 0.01,
+        high24h: item.high24h,
+        low24h: item.low24h
       }));
 
-      // AI Analysis using free AI service
-      const aiPrompt = `Analyze this real-time market data for scalping opportunities:
+      // Enhanced AI prompt for professional scalping analysis
+      const aiPrompt = `You are an expert scalping trader and market analyst. Analyze this real-time market data for scalping opportunities:
 
+Market Data (${marketSummary.length} pairs):
 ${JSON.stringify(marketSummary, null, 2)}
 
-Provide a scalping analysis including:
-1. Overall market condition (TRENDING/RANGING/VOLATILE/CONSOLIDATING)
-2. Volatility level (0-5 scale)
-3. Momentum direction (-5 to +5)
-4. Risk level (LOW/MEDIUM/HIGH)
-5. Top 3 recommended pairs for scalping
-6. Brief recommendation (max 100 chars)
+Current Time: ${new Date().toISOString()}
+Market Session: ${getMarketSession()}
 
-Respond in JSON format only.`;
+Provide a comprehensive scalping analysis:
+
+1. MARKET CONDITION: Analyze overall market state
+   - TRENDING: Strong directional movement
+   - RANGING: Sideways movement within bounds
+   - VOLATILE: High volatility with rapid price swings
+   - CONSOLIDATING: Low volatility, tight ranges
+
+2. VOLATILITY LEVEL (0-5): Rate current market volatility
+   - 0-1: Very low, minimal movement
+   - 2-3: Moderate, good for scalping
+   - 4-5: High, requires careful risk management
+
+3. MOMENTUM (-5 to +5): Overall market momentum
+   - Negative: Bearish momentum
+   - Zero: Neutral/sideways
+   - Positive: Bullish momentum
+
+4. RISK LEVEL: Current market risk assessment
+   - LOW: Stable conditions, predictable movements
+   - MEDIUM: Normal market conditions
+   - HIGH: Unpredictable, high volatility
+
+5. TOP PAIRS: Identify 3-5 best pairs for scalping based on:
+   - Volatility levels
+   - Spread costs
+   - Volume/liquidity
+   - Technical setup
+
+6. RECOMMENDATION: Brief actionable advice (max 150 chars)
+
+Respond in valid JSON format with these exact keys:
+{
+  "marketCondition": "TRENDING|RANGING|VOLATILE|CONSOLIDATING",
+  "volatility": number,
+  "momentum": number,
+  "riskLevel": "LOW|MEDIUM|HIGH",
+  "optimalPairs": ["PAIR1", "PAIR2", "PAIR3"],
+  "recommendation": "string"
+}`;
 
       const response = await fetch('https://toolkit.rork.com/text/llm/', {
         method: 'POST',
@@ -276,7 +315,7 @@ Respond in JSON format only.`;
           messages: [
             {
               role: 'system',
-              content: 'You are a professional forex and crypto scalping analyst. Provide concise, actionable analysis in JSON format.'
+              content: 'You are a professional scalping trader with 10+ years of experience in forex and crypto markets. Provide precise, actionable analysis in valid JSON format only. Focus on short-term scalping opportunities with tight spreads and good liquidity.'
             },
             {
               role: 'user',
@@ -286,32 +325,68 @@ Respond in JSON format only.`;
         })
       });
 
+      if (!response.ok) {
+        throw new Error(`AI API request failed: ${response.status}`);
+      }
+
       const aiResult = await response.json();
       let aiAnalysis;
       
       try {
-        aiAnalysis = JSON.parse(aiResult.completion);
-      } catch {
-        // Fallback to manual analysis if AI parsing fails
+        // Try to parse JSON response
+        const jsonMatch = aiResult.completion.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          aiAnalysis = JSON.parse(jsonMatch[0]);
+        } else {
+          throw new Error('No JSON found in response');
+        }
+      } catch (parseError) {
+        console.warn('AI JSON parsing failed, using fallback:', parseError);
         aiAnalysis = generateFallbackAnalysis(data);
       }
 
-      return {
-        marketCondition: aiAnalysis.marketCondition || 'RANGING',
-        volatility: aiAnalysis.volatility || 2,
-        momentum: aiAnalysis.momentum || 0,
-        support: 0,
-        resistance: 0,
-        recommendation: aiAnalysis.recommendation || 'Monitor market conditions closely',
-        riskLevel: aiAnalysis.riskLevel || 'MEDIUM',
-        optimalPairs: aiAnalysis.optimalPairs || data.slice(0, 3).map(item => item.symbol),
+      // Validate and sanitize AI response
+      const validatedAnalysis = {
+        marketCondition: ['TRENDING', 'RANGING', 'VOLATILE', 'CONSOLIDATING'].includes(aiAnalysis.marketCondition) 
+          ? aiAnalysis.marketCondition : 'RANGING',
+        volatility: typeof aiAnalysis.volatility === 'number' && aiAnalysis.volatility >= 0 && aiAnalysis.volatility <= 5 
+          ? aiAnalysis.volatility : 2.5,
+        momentum: typeof aiAnalysis.momentum === 'number' && aiAnalysis.momentum >= -5 && aiAnalysis.momentum <= 5 
+          ? aiAnalysis.momentum : 0,
+        support: 0, // Will be calculated separately
+        resistance: 0, // Will be calculated separately
+        recommendation: typeof aiAnalysis.recommendation === 'string' && aiAnalysis.recommendation.length > 0 
+          ? aiAnalysis.recommendation.substring(0, 150) : 'Monitor market conditions closely',
+        riskLevel: ['LOW', 'MEDIUM', 'HIGH'].includes(aiAnalysis.riskLevel) 
+          ? aiAnalysis.riskLevel : 'MEDIUM',
+        optimalPairs: Array.isArray(aiAnalysis.optimalPairs) && aiAnalysis.optimalPairs.length > 0 
+          ? aiAnalysis.optimalPairs.slice(0, 5) : data.slice(0, 3).map(item => item.symbol),
         timestamp: new Date(),
       };
+
+      console.log(`🤖 AI Scalping Analysis:`, {
+        condition: validatedAnalysis.marketCondition,
+        volatility: validatedAnalysis.volatility,
+        momentum: validatedAnalysis.momentum,
+        risk: validatedAnalysis.riskLevel,
+        pairs: validatedAnalysis.optimalPairs.join(', ')
+      });
+
+      return validatedAnalysis;
     } catch (error) {
-      console.error('Error in AI analysis:', error);
+      console.error('❌ AI scalping analysis failed:', error);
       return generateFallbackAnalysis(data);
     }
   }, []);
+
+  // Helper function to determine current market session
+  const getMarketSession = (): string => {
+    const hour = new Date().getUTCHours();
+    if (hour >= 0 && hour < 9) return 'Asian Session';
+    if (hour >= 9 && hour < 17) return 'London Session';
+    if (hour >= 17 && hour < 24) return 'New York Session';
+    return 'Overlap Session';
+  };
 
   const generateFallbackAnalysis = useCallback((data: MarketData[]): ScalpingAnalysis => {
     const volatilitySum = data.reduce((sum, item) => sum + Math.abs(item.changePercent), 0);
@@ -454,7 +529,7 @@ Respond with JSON containing: action (BUY/SELL/HOLD), confidence (0-100), entryP
               messages: [
                 {
                   role: 'system',
-                  content: 'You are an expert scalping trader. Generate precise, actionable trading signals based on real-time market data. Only suggest trades with high probability of success.'
+                  content: 'You are an expert scalping trader with deep knowledge of technical analysis, market microstructure, and risk management. Generate precise, actionable trading signals based on real-time market data. Only suggest trades with high probability of success and favorable risk-reward ratios. Respond in valid JSON format only.'
                 },
                 {
                   role: 'user',
@@ -464,16 +539,32 @@ Respond with JSON containing: action (BUY/SELL/HOLD), confidence (0-100), entryP
             })
           });
 
+          if (!response.ok) {
+            throw new Error(`AI signal request failed: ${response.status}`);
+          }
+
           const aiResult = await response.json();
           let aiSignal;
           
           try {
-            aiSignal = JSON.parse(aiResult.completion);
-          } catch {
+            // Enhanced JSON parsing with fallback
+            const jsonMatch = aiResult.completion.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+              aiSignal = JSON.parse(jsonMatch[0]);
+            } else {
+              throw new Error('No JSON found in AI response');
+            }
+          } catch (parseError) {
+            console.warn(`JSON parsing failed for ${item.symbol}:`, parseError);
             return null; // Skip if AI response is not valid JSON
           }
 
-          if (aiSignal.action === 'HOLD' || aiSignal.confidence < config.minConfidence) {
+          // Enhanced validation
+          if (!aiSignal.action || 
+              aiSignal.action === 'HOLD' || 
+              !['BUY', 'SELL'].includes(aiSignal.action) ||
+              typeof aiSignal.confidence !== 'number' ||
+              aiSignal.confidence < config.minConfidence) {
             return null;
           }
 
