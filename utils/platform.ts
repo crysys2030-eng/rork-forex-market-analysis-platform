@@ -54,31 +54,53 @@ export const PlatformUtils = {
   // Platform-specific storage
   storage: {
     async getItem(key: string): Promise<string | null> {
-      if (Platform.OS === 'web') {
-        try {
+      try {
+        if (Platform.OS === 'web') {
           if (typeof window !== 'undefined' && typeof window.localStorage !== 'undefined') {
             return window.localStorage.getItem(key);
           }
-        } catch (error) {
-          console.warn('localStorage not available:', error);
+          return null;
+        } else {
+          // Use AsyncStorage for mobile (iOS/Android)
+          const AsyncStorage = await import('@react-native-async-storage/async-storage');
+          return await AsyncStorage.default.getItem(key);
         }
+      } catch (error) {
+        console.warn('Storage getItem failed:', error);
+        return null;
       }
-      // For mobile, we would use AsyncStorage, but for now use memory storage
-      return null;
     },
     
     async setItem(key: string, value: string): Promise<void> {
-      if (Platform.OS === 'web') {
-        try {
+      try {
+        if (Platform.OS === 'web') {
           if (typeof window !== 'undefined' && typeof window.localStorage !== 'undefined') {
             window.localStorage.setItem(key, value);
-            return;
           }
-        } catch (error) {
-          console.warn('localStorage not available:', error);
+        } else {
+          // Use AsyncStorage for mobile (iOS/Android)
+          const AsyncStorage = await import('@react-native-async-storage/async-storage');
+          await AsyncStorage.default.setItem(key, value);
         }
+      } catch (error) {
+        console.warn('Storage setItem failed:', error);
       }
-      // For mobile, we would use AsyncStorage
+    },
+    
+    async removeItem(key: string): Promise<void> {
+      try {
+        if (Platform.OS === 'web') {
+          if (typeof window !== 'undefined' && typeof window.localStorage !== 'undefined') {
+            window.localStorage.removeItem(key);
+          }
+        } else {
+          // Use AsyncStorage for mobile (iOS/Android)
+          const AsyncStorage = await import('@react-native-async-storage/async-storage');
+          await AsyncStorage.default.removeItem(key);
+        }
+      } catch (error) {
+        console.warn('Storage removeItem failed:', error);
+      }
     }
   },
   
@@ -101,38 +123,97 @@ export const PlatformUtils = {
   },
   
   // Platform-specific haptic feedback
-  hapticFeedback: (type: 'light' | 'medium' | 'heavy' = 'light') => {
-    if (Platform.OS !== 'web') {
-      // On mobile, we would use expo-haptics
-      console.log(`Haptic feedback: ${type}`);
-    } else {
-      // Web fallback - could use vibration API if available
-      if ('vibrate' in navigator) {
-        const duration = type === 'light' ? 10 : type === 'medium' ? 20 : 50;
-        navigator.vibrate(duration);
+  hapticFeedback: async (type: 'light' | 'medium' | 'heavy' = 'light') => {
+    try {
+      if (Platform.OS !== 'web') {
+        // Use expo-haptics for mobile
+        const Haptics = await import('expo-haptics');
+        switch (type) {
+          case 'light':
+            await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            break;
+          case 'medium':
+            await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            break;
+          case 'heavy':
+            await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+            break;
+        }
+      } else {
+        // Web fallback - use vibration API if available
+        if ('vibrate' in navigator) {
+          const duration = type === 'light' ? 10 : type === 'medium' ? 20 : 50;
+          navigator.vibrate(duration);
+        }
       }
+    } catch (error) {
+      console.warn('Haptic feedback failed:', error);
+      // Fallback to console log for debugging
+      console.log(`Haptic feedback: ${type}`);
     }
   },
   
   // Platform-specific dimensions
-  getDimensions: () => {
-    if (Platform.OS === 'web') {
-      return {
-        width: typeof window !== 'undefined' ? window.innerWidth : 375,
-        height: typeof window !== 'undefined' ? window.innerHeight : 812
-      };
+  getDimensions: async () => {
+    try {
+      if (Platform.OS === 'web') {
+        return {
+          width: typeof window !== 'undefined' ? window.innerWidth : 375,
+          height: typeof window !== 'undefined' ? window.innerHeight : 812
+        };
+      } else {
+        // Use Dimensions from react-native for mobile
+        const { Dimensions } = await import('react-native');
+        const { width, height } = Dimensions.get('window');
+        return { width, height };
+      }
+    } catch (error) {
+      console.warn('Failed to get dimensions:', error);
+      return { width: 375, height: 812 };
     }
-    // On mobile, we would use Dimensions from react-native
-    return { width: 375, height: 812 };
   },
   
   // Platform-specific safe area handling
   getSafeAreaInsets: () => {
-    if (Platform.OS === 'web') {
+    try {
+      if (Platform.OS === 'web') {
+        return { top: 0, bottom: 0, left: 0, right: 0 };
+      } else {
+        // Default safe area values for mobile
+        // In actual usage, this should be replaced with useSafeAreaInsets hook
+        return Platform.OS === 'ios' 
+          ? { top: 44, bottom: 34, left: 0, right: 0 }
+          : { top: 24, bottom: 0, left: 0, right: 0 }; // Android status bar
+      }
+    } catch (error) {
+      console.warn('Failed to get safe area insets:', error);
       return { top: 0, bottom: 0, left: 0, right: 0 };
     }
-    // On mobile, we would use useSafeAreaInsets
-    return { top: 44, bottom: 34, left: 0, right: 0 };
+  },
+  
+  // Platform-specific vibration
+  vibrate: async (pattern?: number | number[]) => {
+    try {
+      if (Platform.OS !== 'web') {
+        const RN = await import('react-native');
+        if (pattern) {
+          RN.Vibration.vibrate(pattern);
+        } else {
+          RN.Vibration.vibrate();
+        }
+      } else {
+        // Web vibration API
+        if ('vibrate' in navigator) {
+          if (Array.isArray(pattern)) {
+            navigator.vibrate(pattern);
+          } else {
+            navigator.vibrate(pattern || 200);
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('Vibration failed:', error);
+    }
   }
 };
 
@@ -140,4 +221,5 @@ export const PlatformUtils = {
 export const { isWeb, isMobile, isIOS, isAndroid } = PlatformUtils;
 
 // Export commonly used functions
-export const { getTimeout, getInterval, hapticFeedback } = PlatformUtils;
+export const { getTimeout, getInterval, hapticFeedback, vibrate } = PlatformUtils;
+export const { storage } = PlatformUtils;

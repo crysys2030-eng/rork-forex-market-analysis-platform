@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Platform } from 'react-native';
+import { createTimeout, clearTimeoutSafe, TimeoutId } from '@/utils/platform';
 
 interface RealTimeMarketData {
   symbol: string;
@@ -87,7 +88,7 @@ export function useRealTimeData() {
   const generateAIAnalysis = useCallback(async (symbol: string, marketData: RealTimeMarketData): Promise<AIMarketAnalysis | null> => {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
+      const timeoutId = createTimeout(() => controller.abort(), 8000); // 8 second timeout
       
       const response = await fetch('https://toolkit.rork.com/text/llm/', {
         method: 'POST',
@@ -109,7 +110,7 @@ export function useRealTimeData() {
         signal: controller.signal
       });
       
-      clearTimeout(timeoutId);
+      clearTimeoutSafe(timeoutId);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -170,7 +171,7 @@ export function useRealTimeData() {
   const generateAIInsight = useCallback(async (marketData: RealTimeMarketData[]): Promise<RealTimeAIInsight[]> => {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
+      const timeoutId = createTimeout(() => controller.abort(), 8000); // 8 second timeout
       
       const response = await fetch('https://toolkit.rork.com/text/llm/', {
         method: 'POST',
@@ -192,7 +193,7 @@ export function useRealTimeData() {
         signal: controller.signal
       });
       
-      clearTimeout(timeoutId);
+      clearTimeoutSafe(timeoutId);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -488,7 +489,7 @@ export function useRealTimeData() {
   // Start real-time updates with real data
   useEffect(() => {
     let isMounted = true;
-    let timeoutId: NodeJS.Timeout | number;
+    let timeoutId: TimeoutId | null = null;
     
     const runUpdate = async () => {
       if (!isMounted) return;
@@ -634,11 +635,11 @@ export function useRealTimeData() {
       
       // Schedule next update
       if (isMounted) {
-        timeoutId = setTimeout(() => {
+        timeoutId = createTimeout(() => {
           if (isMounted) {
             runUpdate();
           }
-        }, 15000) as NodeJS.Timeout;
+        }, 15000);
       }
     };
     
@@ -646,9 +647,7 @@ export function useRealTimeData() {
     
     return () => {
       isMounted = false;
-      if (timeoutId) {
-        clearTimeout(timeoutId as NodeJS.Timeout);
-      }
+      clearTimeoutSafe(timeoutId);
     };
   }, []);
 

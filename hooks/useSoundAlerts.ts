@@ -1,6 +1,6 @@
 import { useCallback, useRef, useEffect } from 'react';
 import { Platform } from 'react-native';
-import { PlatformUtils } from '@/utils/platform';
+import { vibrate } from '@/utils/platform';
 
 interface SoundAlertConfig {
   enabled: boolean;
@@ -99,67 +99,52 @@ export function useSoundAlerts() {
   const playVibration = useCallback(async (type: 'beep' | 'chime' | 'notification') => {
     if (!configRef.current.vibrationEnabled) return;
     
-    if (Platform.OS !== 'web') {
-      try {
+    try {
+      // First try haptic feedback for better user experience
+      if (Platform.OS !== 'web') {
         const Haptics = await import('expo-haptics');
         switch (type) {
           case 'beep':
             await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            break;
+            return;
           case 'chime':
             await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            break;
+            return;
           case 'notification':
             await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            break;
-        }
-      } catch (error) {
-        console.warn('Haptics not available, trying vibration:', error);
-        try {
-          const { Vibration } = await import('react-native');
-          switch (type) {
-            case 'beep':
-              Vibration.vibrate(200);
-              break;
-            case 'chime':
-              Vibration.vibrate([0, 150, 100, 150]);
-              break;
-            case 'notification':
-              Vibration.vibrate([0, 100, 50, 100, 50, 200]);
-              break;
-          }
-        } catch (vibError) {
-          console.warn('Vibration not available:', vibError);
+            return;
         }
       }
-    } else {
-      // Web vibration API
-      if ('vibrate' in navigator) {
-        switch (type) {
-          case 'beep':
-            navigator.vibrate(200);
-            break;
-          case 'chime':
-            navigator.vibrate([150, 100, 150]);
-            break;
-          case 'notification':
-            navigator.vibrate([100, 50, 100, 50, 200]);
-            break;
-        }
+    } catch (error) {
+      console.warn('Haptics not available, falling back to vibration:', error);
+    }
+    
+    // Fallback to vibration using platform utils
+    try {
+      switch (type) {
+        case 'beep':
+          await vibrate(200);
+          break;
+        case 'chime':
+          await vibrate([150, 100, 150]);
+          break;
+        case 'notification':
+          await vibrate([100, 50, 100, 50, 200]);
+          break;
       }
+    } catch (error) {
+      console.warn('Vibration failed:', error);
     }
   }, []);
 
   // Play native alert sound (for mobile)
   const playNativeAlert = useCallback(async (type: 'beep' | 'chime' | 'notification') => {
-    if (Platform.OS !== 'web') {
-      // Use vibration as the primary alert method
-      await playVibration(type);
-    }
+    // Use vibration as the primary alert method for all platforms
+    await playVibration(type);
   }, [playVibration]);
 
   // Main alert function
-  const playAlert = useCallback((trigger: AlertTrigger) => {
+  const playAlert = useCallback(async (trigger: AlertTrigger) => {
     if (!configRef.current.enabled) return;
 
     // Prevent spam - only allow one alert per symbol per 5 seconds
@@ -223,24 +208,14 @@ export function useSoundAlerts() {
       if (initializeAudio()) {
         playWebAlert(frequency, duration, soundType);
       }
-      // Web vibration API if available
-      if (configRef.current.vibrationEnabled && 'vibrate' in navigator) {
-        switch (soundType) {
-          case 'beep':
-            navigator.vibrate(200);
-            break;
-          case 'chime':
-            navigator.vibrate([150, 100, 150]);
-            break;
-          case 'notification':
-            navigator.vibrate([100, 50, 100, 50, 200]);
-            break;
-        }
+      // Cross-platform vibration
+      if (configRef.current.vibrationEnabled) {
+        await playVibration(soundType);
       }
     } else {
-      playNativeAlert(soundType);
+      await playNativeAlert(soundType);
     }
-  }, [initializeAudio, playWebAlert, playNativeAlert]);
+  }, [initializeAudio, playWebAlert, playNativeAlert, playVibration]);
 
   // Configuration functions
   const updateConfig = useCallback((newConfig: Partial<SoundAlertConfig>) => {
@@ -262,8 +237,8 @@ export function useSoundAlerts() {
   }, []);
 
   // Test alert function
-  const testAlert = useCallback((type: AlertTrigger['type'] = 'SCALPING') => {
-    playAlert({
+  const testAlert = useCallback(async (type: AlertTrigger['type'] = 'SCALPING') => {
+    await playAlert({
       type,
       symbol: 'TEST',
       confidence: 85,

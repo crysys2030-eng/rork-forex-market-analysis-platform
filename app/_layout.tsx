@@ -2,13 +2,18 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, Component, ReactNode } from "react";
-import { StyleSheet, View, Text, TouchableOpacity, Platform } from "react-native";
+import { StyleSheet, View, Text, TouchableOpacity, Platform, StatusBar } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { AlertTriangle, RefreshCw } from "lucide-react-native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
-if (Platform.OS !== 'web') {
-  SplashScreen.preventAutoHideAsync();
+try {
+  if (Platform.OS !== 'web') {
+    SplashScreen.preventAutoHideAsync();
+  }
+} catch (error) {
+  console.warn('SplashScreen.preventAutoHideAsync failed:', error);
 }
 
 // Cross-platform QueryClient configuration
@@ -89,18 +94,37 @@ function RootLayoutNav() {
 
 export default function RootLayout() {
   useEffect(() => {
-    if (Platform.OS !== 'web') {
-      SplashScreen.hideAsync();
-    }
+    const hideSplashScreen = async () => {
+      try {
+        if (Platform.OS !== 'web') {
+          await SplashScreen.hideAsync();
+        }
+      } catch (error) {
+        console.warn('SplashScreen.hideAsync failed:', error);
+      }
+    };
+    
+    // Small delay to ensure app is ready
+    const timer = setTimeout(hideSplashScreen, 100);
+    return () => clearTimeout(timer);
   }, []);
 
   return (
     <ErrorBoundary>
-      <QueryClientProvider client={queryClient}>
-        <GestureHandlerRootView style={styles.container}>
-          <RootLayoutNav />
-        </GestureHandlerRootView>
-      </QueryClientProvider>
+      <SafeAreaProvider>
+        <QueryClientProvider client={queryClient}>
+          <GestureHandlerRootView style={styles.container}>
+            {Platform.OS === 'android' && (
+              <StatusBar 
+                barStyle="light-content" 
+                backgroundColor="#111827" 
+                translucent={false}
+              />
+            )}
+            <RootLayoutNav />
+          </GestureHandlerRootView>
+        </QueryClientProvider>
+      </SafeAreaProvider>
     </ErrorBoundary>
   );
 }
