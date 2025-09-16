@@ -17,6 +17,8 @@ import { ActiveIndicatorAlert } from '@/components/ActiveIndicatorAlert';
 import { AlertHistoryModal } from '@/components/AlertHistoryModal';
 import { useScalpingAI } from '@/hooks/useScalpingAI';
 import { useAlertHistory } from '@/hooks/useAlertHistory';
+import { useSoundAlerts } from '@/hooks/useSoundAlerts';
+import { SoundAlertControls } from '@/components/SoundAlertControls';
 
 export default function ScalpingScreen() {
   const insets = useSafeAreaInsets();
@@ -43,6 +45,13 @@ export default function ScalpingScreen() {
     getAlertsByType,
     generateMockAlert
   } = useAlertHistory();
+  
+  const {
+    playAlert,
+    toggleAlerts,
+    testAlert,
+    isEnabled: soundAlertsEnabled
+  } = useSoundAlerts();
   
   const [lastUpdate, setLastUpdate] = useState(new Date());
   const [showHistoryModal, setShowHistoryModal] = useState(false);
@@ -105,9 +114,18 @@ export default function ScalpingScreen() {
           },
           status: 'ACTIVE',
         });
+        
+        // Play sound alert for new high-confidence signals
+        const alertType = signal.confidence > 90 ? 'CRITICAL' : 'HIGH_CONFIDENCE';
+        playAlert({
+          type: alertType,
+          symbol: signal.symbol,
+          confidence: signal.confidence,
+          timestamp: signal.timestamp,
+        });
       }
     });
-  }, [highConfidenceSignals.length, addAlert, getAlertsForSymbol]);
+  }, [highConfidenceSignals.length, addAlert, getAlertsForSymbol, playAlert]);
   
   const formatPrice = (price: number, symbol: string) => {
     const decimals = symbol.includes('JPY') ? 3 : 5;
@@ -248,6 +266,12 @@ export default function ScalpingScreen() {
           style={styles.scrollView}
           showsVerticalScrollIndicator={false}
         >
+          {/* Sound Alert Controls */}
+          <SoundAlertControls
+            isEnabled={soundAlertsEnabled}
+            onToggle={toggleAlerts}
+            onTest={() => testAlert('SCALPING')}
+          />
           {/* Active Indicator Alerts */}
           {activeIndicators.length > 0 && (
             <View style={styles.section}>

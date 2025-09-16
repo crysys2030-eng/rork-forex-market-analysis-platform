@@ -20,6 +20,8 @@ import { MLConfigCard } from '@/components/MLConfigCard';
 import { ActiveIndicatorAlert } from '@/components/ActiveIndicatorAlert';
 import { AlertHistoryModal } from '@/components/AlertHistoryModal';
 import { useAlertHistory } from '@/hooks/useAlertHistory';
+import { useSoundAlerts } from '@/hooks/useSoundAlerts';
+import { SoundAlertControls } from '@/components/SoundAlertControls';
 
 export default function MLTradingScreen() {
   const insets = useSafeAreaInsets();
@@ -44,6 +46,13 @@ export default function MLTradingScreen() {
     getAlertsForSymbol,
     getAlertsByType,
   } = useAlertHistory();
+  
+  const {
+    playAlert,
+    toggleAlerts,
+    testAlert,
+    isEnabled: soundAlertsEnabled
+  } = useSoundAlerts();
   
   const [showHistoryModal, setShowHistoryModal] = React.useState(false);
   const [selectedSymbolHistory, setSelectedSymbolHistory] = React.useState<string | undefined>();
@@ -108,9 +117,18 @@ export default function MLTradingScreen() {
           },
           status: 'ACTIVE',
         });
+        
+        // Play sound alert for new high-accuracy ML signals
+        const alertType = signal.accuracy > 95 ? 'CRITICAL' : 'ML_TRADING';
+        playAlert({
+          type: alertType,
+          symbol: signal.symbol,
+          confidence: signal.confidence,
+          timestamp: signal.timestamp,
+        });
       }
     });
-  }, [highAccuracySignals.length, addAlert, getAlertsForSymbol]);
+  }, [highAccuracySignals.length, addAlert, getAlertsForSymbol, playAlert]);
 
   return (
     <View style={styles.container}>
@@ -202,6 +220,12 @@ export default function MLTradingScreen() {
           style={styles.scrollView}
           showsVerticalScrollIndicator={false}
         >
+          {/* Sound Alert Controls */}
+          <SoundAlertControls
+            isEnabled={soundAlertsEnabled}
+            onToggle={toggleAlerts}
+            onTest={() => testAlert('ML_TRADING')}
+          />
           {/* Active ML Indicator Alerts */}
           {activeMLIndicators.length > 0 && (
             <View style={styles.section}>

@@ -1,11 +1,12 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
 } from 'react-native';
-import { Bell, TrendingUp, Activity } from 'lucide-react-native';
+import { Bell, TrendingUp, Activity, Volume2 } from 'lucide-react-native';
+import { useSoundAlerts } from '@/hooks/useSoundAlerts';
 
 interface ActiveIndicatorAlertProps {
   symbol: string;
@@ -13,6 +14,7 @@ interface ActiveIndicatorAlertProps {
   signalCount: number;
   confidence?: number;
   onPress?: () => void;
+  playAlertSound?: boolean;
 }
 
 export function ActiveIndicatorAlert({ 
@@ -20,8 +22,23 @@ export function ActiveIndicatorAlert({
   indicatorType, 
   signalCount, 
   confidence,
-  onPress 
+  onPress,
+  playAlertSound = true
 }: ActiveIndicatorAlertProps) {
+  const { playAlert, isEnabled: soundAlertsEnabled } = useSoundAlerts();
+  
+  // Play sound alert when component mounts (new active indicator detected)
+  useEffect(() => {
+    if (playAlertSound && soundAlertsEnabled) {
+      const alertType = indicatorType === 'SCALPING' ? 'SCALPING' : 'ML_TRADING';
+      playAlert({
+        type: alertType,
+        symbol,
+        confidence: confidence || 75,
+        timestamp: new Date(),
+      });
+    }
+  }, []); // Only run on mount
   const getIndicatorColor = () => {
     switch (indicatorType) {
       case 'SCALPING':
@@ -82,9 +99,16 @@ export function ActiveIndicatorAlert({
       </View>
       
       <View style={styles.details}>
-        <Text style={styles.detailText}>
-          {signalCount} active signal{signalCount !== 1 ? 's' : ''} detected
-        </Text>
+        <View style={styles.detailRow}>
+          <Text style={styles.detailText}>
+            {signalCount} active signal{signalCount !== 1 ? 's' : ''} detected
+          </Text>
+          {soundAlertsEnabled && (
+            <View style={styles.soundIndicator}>
+              <Volume2 color="#10B981" size={12} />
+            </View>
+          )}
+        </View>
         {confidence && (
           <Text style={styles.confidenceText}>
             Avg. Confidence: {confidence}%
@@ -158,6 +182,16 @@ const styles = StyleSheet.create({
   },
   details: {
     marginBottom: 8,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  soundIndicator: {
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    borderRadius: 8,
+    padding: 4,
   },
   detailText: {
     fontSize: 13,
