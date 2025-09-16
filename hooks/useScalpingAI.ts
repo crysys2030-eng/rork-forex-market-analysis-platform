@@ -1048,7 +1048,7 @@ Respond with JSON containing: action (BUY/SELL/HOLD), confidence (0-100), entryP
   // Initialize real-time data fetching
   useEffect(() => {
     let isMounted = true;
-    let dataFetchInterval: ReturnType<typeof setInterval> | undefined;
+    let dataFetchInterval: NodeJS.Timeout | undefined;
     
     const fetchData = async () => {
       if (!isMounted) return;
@@ -1113,9 +1113,9 @@ Respond with JSON containing: action (BUY/SELL/HOLD), confidence (0-100), entryP
   // Initialize continuous scalping system
   useEffect(() => {
     let isMounted = true;
-    let pairRotationInterval: ReturnType<typeof setInterval> | undefined;
-    let analysisInterval: ReturnType<typeof setInterval> | undefined;
-    let initialTimeout: ReturnType<typeof setTimeout> | undefined;
+    let pairRotationInterval: NodeJS.Timeout | undefined;
+    let analysisInterval: NodeJS.Timeout | undefined;
+    let initialTimeout: NodeJS.Timeout | undefined;
     let isProcessing = false;
     
     // Inline pair rotation to avoid dependency issues

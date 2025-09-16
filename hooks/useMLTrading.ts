@@ -917,8 +917,8 @@ Respond with detailed analysis and specific numerical values for each score.`;
   
   // Enhanced continuous pair discovery and rotation
   useEffect(() => {
-    let intervalId: ReturnType<typeof setInterval>;
-    let timeoutId: ReturnType<typeof setTimeout>;
+    let intervalId: NodeJS.Timeout;
+    let timeoutId: NodeJS.Timeout;
     let isMounted = true;
     let isProcessing = false;
     
@@ -996,8 +996,8 @@ Respond with detailed analysis and specific numerical values for each score.`;
   // Real-time AI-powered market analysis every 30 seconds
   useEffect(() => {
     let isMounted = true;
-    let intervalId: ReturnType<typeof setInterval>;
-    let timeoutId: ReturnType<typeof setTimeout>;
+    let intervalId: NodeJS.Timeout;
+    let timeoutId: NodeJS.Timeout;
     let isProcessing = false;
     
     const runAIAnalysis = async () => {

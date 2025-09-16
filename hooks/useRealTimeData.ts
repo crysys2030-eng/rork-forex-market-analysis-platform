@@ -488,7 +488,7 @@ export function useRealTimeData() {
   // Start real-time updates with real data
   useEffect(() => {
     let isMounted = true;
-    let timeoutId: ReturnType<typeof setTimeout>;
+    let timeoutId: NodeJS.Timeout | number;
     
     const runUpdate = async () => {
       if (!isMounted) return;
@@ -638,7 +638,7 @@ export function useRealTimeData() {
           if (isMounted) {
             runUpdate();
           }
-        }, 15000);
+        }, 15000) as NodeJS.Timeout;
       }
     };
     
@@ -647,7 +647,7 @@ export function useRealTimeData() {
     return () => {
       isMounted = false;
       if (timeoutId) {
-        clearTimeout(timeoutId);
+        clearTimeout(timeoutId as NodeJS.Timeout);
       }
     };
   }, []);

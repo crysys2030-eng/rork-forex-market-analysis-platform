@@ -1,5 +1,6 @@
 import { useCallback, useRef, useEffect } from 'react';
 import { Platform } from 'react-native';
+import { PlatformUtils } from '@/utils/platform';
 
 interface SoundAlertConfig {
   enabled: boolean;
@@ -94,69 +95,66 @@ export function useSoundAlerts() {
     }
   }, []);
 
-  // Play vibration patterns
-  const playVibration = useCallback((type: 'beep' | 'chime' | 'notification') => {
+  // Cross-platform vibration
+  const playVibration = useCallback(async (type: 'beep' | 'chime' | 'notification') => {
     if (!configRef.current.vibrationEnabled) return;
     
     if (Platform.OS !== 'web') {
       try {
-        import('react-native').then(({ Vibration }) => {
+        const Haptics = await import('expo-haptics');
+        switch (type) {
+          case 'beep':
+            await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            break;
+          case 'chime':
+            await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            break;
+          case 'notification':
+            await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            break;
+        }
+      } catch (error) {
+        console.warn('Haptics not available, trying vibration:', error);
+        try {
+          const { Vibration } = await import('react-native');
           switch (type) {
             case 'beep':
-              // Short single vibration
               Vibration.vibrate(200);
               break;
             case 'chime':
-              // Double vibration pattern
               Vibration.vibrate([0, 150, 100, 150]);
               break;
             case 'notification':
-              // Triple vibration pattern for high importance
               Vibration.vibrate([0, 100, 50, 100, 50, 200]);
               break;
           }
-        }).catch(() => {
-          console.log('Vibration not available');
-        });
-      } catch (error) {
-        console.log('Vibration error:', error);
+        } catch (vibError) {
+          console.warn('Vibration not available:', vibError);
+        }
+      }
+    } else {
+      // Web vibration API
+      if ('vibrate' in navigator) {
+        switch (type) {
+          case 'beep':
+            navigator.vibrate(200);
+            break;
+          case 'chime':
+            navigator.vibrate([150, 100, 150]);
+            break;
+          case 'notification':
+            navigator.vibrate([100, 50, 100, 50, 200]);
+            break;
+        }
       }
     }
   }, []);
 
   // Play native alert sound (for mobile)
-  const playNativeAlert = useCallback((type: 'beep' | 'chime' | 'notification') => {
-    // For React Native, we would use expo-av or react-native-sound
-    // For now, we'll use a simple vibration pattern if available
+  const playNativeAlert = useCallback(async (type: 'beep' | 'chime' | 'notification') => {
     if (Platform.OS !== 'web') {
-      try {
-        // Try to use Haptics if available
-        import('expo-haptics').then((Haptics) => {
-          switch (type) {
-            case 'beep':
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              break;
-            case 'chime':
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              break;
-            case 'notification':
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              break;
-          }
-        }).catch(() => {
-          console.log('Haptics not available, trying vibration');
-          // Fallback to vibration if haptics not available
-          if (configRef.current.vibrationEnabled) {
-            playVibration(type);
-          }
-        });
-      } catch (error) {
-        console.log('Native alert not available:', error);
-        // Fallback to vibration
-        if (configRef.current.vibrationEnabled) {
-          playVibration(type);
-        }
-      }
+      // Use vibration as the primary alert method
+      await playVibration(type);
     }
   }, [playVibration]);
 

@@ -1,5 +1,32 @@
 import { Platform } from 'react-native';
 
+// Cross-platform timeout type
+export type TimeoutId = NodeJS.Timeout | number;
+
+// Cross-platform setTimeout wrapper
+export const createTimeout = (callback: () => void, delay: number): TimeoutId => {
+  return setTimeout(callback, delay) as TimeoutId;
+};
+
+// Cross-platform clearTimeout wrapper
+export const clearTimeoutSafe = (timeoutId: TimeoutId | undefined | null) => {
+  if (timeoutId) {
+    clearTimeout(timeoutId as NodeJS.Timeout);
+  }
+};
+
+// Cross-platform setInterval wrapper
+export const createInterval = (callback: () => void, delay: number): TimeoutId => {
+  return setInterval(callback, delay) as TimeoutId;
+};
+
+// Cross-platform clearInterval wrapper
+export const clearIntervalSafe = (intervalId: TimeoutId | undefined | null) => {
+  if (intervalId) {
+    clearInterval(intervalId as NodeJS.Timeout);
+  }
+};
+
 // Cross-platform compatibility utilities
 export const PlatformUtils = {
   // Check if running on web
