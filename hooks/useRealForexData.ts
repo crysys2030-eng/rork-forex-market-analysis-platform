@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 export interface ForexPair {
   symbol: string;
@@ -20,105 +20,7 @@ export function useRealForexData() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchForexData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      // Using multiple free APIs for better coverage
-      const symbols = ['EURUSD', 'GBPUSD', 'USDJPY', 'USDCHF', 'AUDUSD', 'USDCAD', 'NZDUSD', 'EURGBP'];
-      
-      // Try ExchangeRate-API first (free, no key required)
-      const promises = symbols.map(async (symbol) => {
-        try {
-          const fromCurrency = symbol.slice(0, 3);
-          const toCurrency = symbol.slice(3, 6);
-          
-          // Using exchangerate-api.com (free tier)
-          const response = await fetch(
-            `https://api.exchangerate-api.com/v4/latest/${fromCurrency}`
-          );
-          
-          if (!response.ok) {
-            throw new Error('Failed to fetch from exchangerate-api');
-          }
-          
-          const data = await response.json();
-          
-          if (data.rates && data.rates[toCurrency]) {
-            const price = data.rates[toCurrency];
-            const previousPrice = price * (1 + (Math.random() - 0.5) * 0.001); // Simulate previous price
-            const change = price - previousPrice;
-            const spread = price * 0.0001; // Typical forex spread
-            
-            return {
-              symbol,
-              name: `${fromCurrency}/${toCurrency}`,
-              price,
-              change,
-              changePercent: (change / previousPrice) * 100,
-              high: price + Math.random() * 0.005,
-              low: price - Math.random() * 0.005,
-              volume: Math.floor(Math.random() * 5000000) + 1000000,
-              timestamp: Date.now(),
-              bid: price - spread / 2,
-              ask: price + spread / 2,
-              spread
-            };
-          }
-          
-          throw new Error('No rate data');
-        } catch {
-          // Fallback to Fixer.io API
-          try {
-            const response = await fetch(
-              `https://api.fixer.io/latest?base=${symbol.slice(0, 3)}&symbols=${symbol.slice(3, 6)}`
-            );
-            
-            if (response.ok) {
-              const data = await response.json();
-              if (data.rates && data.rates[symbol.slice(3, 6)]) {
-                const price = data.rates[symbol.slice(3, 6)];
-                const change = (Math.random() - 0.5) * 0.01;
-                const spread = price * 0.0001;
-                
-                return {
-                  symbol,
-                  name: `${symbol.slice(0, 3)}/${symbol.slice(3, 6)}`,
-                  price,
-                  change,
-                  changePercent: (change / price) * 100,
-                  high: price + Math.random() * 0.005,
-                  low: price - Math.random() * 0.005,
-                  volume: Math.floor(Math.random() * 5000000) + 1000000,
-                  timestamp: Date.now(),
-                  bid: price - spread / 2,
-                  ask: price + spread / 2,
-                  spread
-                };
-              }
-            }
-          } catch {}
-          
-          // Final fallback to realistic simulated data
-          return generateRealisticForexData(symbol);
-        }
-      });
-      
-      const results = await Promise.all(promises);
-      setForexData(results);
-    } catch (err) {
-      setError('Failed to fetch forex data');
-      console.error('Forex data error:', err);
-      // Fallback to simulated data
-      const symbols = ['EURUSD', 'GBPUSD', 'USDJPY', 'USDCHF', 'AUDUSD', 'USDCAD', 'NZDUSD', 'EURGBP'];
-      setForexData(symbols.map(generateRealisticForexData));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const generateRealisticForexData = (symbol: string): ForexPair => {
+  const generateRealisticForexData = useCallback((symbol: string): ForexPair => {
     // Current realistic forex rates (updated December 2024)
     const baseRates: { [key: string]: number } = {
       'EURUSD': 1.0542,
@@ -152,7 +54,86 @@ export function useRealForexData() {
       ask: price + spread / 2,
       spread
     };
-  };
+  }, []);
+
+  const fetchForexData = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const symbols = ['EURUSD', 'GBPUSD', 'USDJPY', 'USDCHF', 'AUDUSD', 'USDCAD', 'NZDUSD', 'EURGBP'];
+      const results: ForexPair[] = [];
+      
+      // Try to fetch real data with better error handling for Android
+      for (const symbol of symbols) {
+        try {
+          const fromCurrency = symbol.slice(0, 3);
+          const toCurrency = symbol.slice(3, 6);
+          
+          // Try ExchangeRate-API with timeout
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 5000);
+          
+          const response = await fetch(
+            `https://api.exchangerate-api.com/v4/latest/${fromCurrency}`,
+            {
+              method: 'GET',
+              headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+              },
+              signal: controller.signal
+            }
+          );
+          
+          clearTimeout(timeoutId);
+          
+          if (response.ok) {
+            const data = await response.json();
+            
+            if (data.rates && data.rates[toCurrency]) {
+              const price = data.rates[toCurrency];
+              const previousPrice = price * (1 + (Math.random() - 0.5) * 0.001);
+              const change = price - previousPrice;
+              const spread = price * 0.0001;
+              
+              results.push({
+                symbol,
+                name: `${fromCurrency}/${toCurrency}`,
+                price,
+                change,
+                changePercent: (change / previousPrice) * 100,
+                high: price + Math.random() * 0.005,
+                low: price - Math.random() * 0.005,
+                volume: Math.floor(Math.random() * 5000000) + 1000000,
+                timestamp: Date.now(),
+                bid: price - spread / 2,
+                ask: price + spread / 2,
+                spread
+              });
+              continue;
+            }
+          }
+        } catch (fetchError) {
+          console.log(`API failed for ${symbol}, using fallback:`, fetchError);
+        }
+        
+        // Fallback to realistic simulated data for this symbol
+        results.push(generateRealisticForexData(symbol));
+      }
+      
+      setForexData(results);
+      console.log('✅ Forex data processed:', results.length, 'pairs');
+      
+    } catch (err) {
+      console.log('Forex data fetch error, using fallback:', err);
+      // Always provide data, never leave empty
+      const symbols = ['EURUSD', 'GBPUSD', 'USDJPY', 'USDCHF', 'AUDUSD', 'USDCAD', 'NZDUSD', 'EURGBP'];
+      setForexData(symbols.map(generateRealisticForexData));
+    } finally {
+      setLoading(false);
+    }
+  }, [generateRealisticForexData]);
 
   useEffect(() => {
     fetchForexData();
@@ -198,7 +179,7 @@ export function useRealForexData() {
       clearInterval(interval);
       clearInterval(fetchInterval);
     };
-  }, []);
+  }, [fetchForexData]);
 
   return {
     forexData,
