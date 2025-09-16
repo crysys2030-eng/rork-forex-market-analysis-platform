@@ -49,8 +49,10 @@ export default function ScalpingScreen() {
   const {
     playAlert,
     toggleAlerts,
+    toggleVibration,
     testAlert,
-    isEnabled: soundAlertsEnabled
+    isEnabled: soundAlertsEnabled,
+    isVibrationEnabled
   } = useSoundAlerts();
   
   const [lastUpdate, setLastUpdate] = useState(new Date());
@@ -269,7 +271,9 @@ export default function ScalpingScreen() {
           {/* Sound Alert Controls */}
           <SoundAlertControls
             isEnabled={soundAlertsEnabled}
+            isVibrationEnabled={isVibrationEnabled}
             onToggle={toggleAlerts}
+            onToggleVibration={toggleVibration}
             onTest={() => testAlert('SCALPING')}
           />
           {/* Active Indicator Alerts */}

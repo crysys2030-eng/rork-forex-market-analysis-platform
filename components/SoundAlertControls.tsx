@@ -6,11 +6,13 @@ import {
   TouchableOpacity,
   Switch,
 } from 'react-native';
-import { Volume2, VolumeX, TestTube, Settings } from 'lucide-react-native';
+import { Volume2, VolumeX, TestTube, Settings, Smartphone } from 'lucide-react-native';
 
 interface SoundAlertControlsProps {
   isEnabled: boolean;
+  isVibrationEnabled: boolean;
   onToggle: () => void;
+  onToggleVibration: () => void;
   onTest: () => void;
   onSettings?: () => void;
   style?: any;
@@ -18,7 +20,9 @@ interface SoundAlertControlsProps {
 
 export function SoundAlertControls({ 
   isEnabled, 
+  isVibrationEnabled,
   onToggle, 
+  onToggleVibration,
   onTest, 
   onSettings,
   style 
@@ -39,6 +43,20 @@ export function SoundAlertControls({
           onValueChange={onToggle}
           trackColor={{ false: '#374151', true: 'rgba(16, 185, 129, 0.3)' }}
           thumbColor={isEnabled ? '#10B981' : '#9CA3AF'}
+          style={styles.switch}
+        />
+      </View>
+      
+      <View style={styles.alertToggle}>
+        <Smartphone color={isVibrationEnabled ? '#8B5CF6' : '#6B7280'} size={16} />
+        <Text style={[styles.alertLabel, { color: isVibrationEnabled ? '#8B5CF6' : '#6B7280' }]}>
+          Vibration
+        </Text>
+        <Switch
+          value={isVibrationEnabled}
+          onValueChange={onToggleVibration}
+          trackColor={{ false: '#374151', true: 'rgba(139, 92, 246, 0.3)' }}
+          thumbColor={isVibrationEnabled ? '#8B5CF6' : '#9CA3AF'}
           style={styles.switch}
         />
       </View>
@@ -85,7 +103,7 @@ const styles = StyleSheet.create({
   alertToggle: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   alertLabel: {
     fontSize: 14,

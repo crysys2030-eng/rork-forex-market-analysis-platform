@@ -50,8 +50,10 @@ export default function MLTradingScreen() {
   const {
     playAlert,
     toggleAlerts,
+    toggleVibration,
     testAlert,
-    isEnabled: soundAlertsEnabled
+    isEnabled: soundAlertsEnabled,
+    isVibrationEnabled
   } = useSoundAlerts();
   
   const [showHistoryModal, setShowHistoryModal] = React.useState(false);
@@ -223,7 +225,9 @@ export default function MLTradingScreen() {
           {/* Sound Alert Controls */}
           <SoundAlertControls
             isEnabled={soundAlertsEnabled}
+            isVibrationEnabled={isVibrationEnabled}
             onToggle={toggleAlerts}
+            onToggleVibration={toggleVibration}
             onTest={() => testAlert('ML_TRADING')}
           />
           {/* Active ML Indicator Alerts */}

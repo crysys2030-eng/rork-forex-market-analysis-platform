@@ -4,6 +4,7 @@ import { Platform } from 'react-native';
 interface SoundAlertConfig {
   enabled: boolean;
   volume: number;
+  vibrationEnabled: boolean;
   alertTypes: {
     scalping: boolean;
     mlTrading: boolean;
@@ -25,6 +26,7 @@ export function useSoundAlerts() {
   const configRef = useRef<SoundAlertConfig>({
     enabled: true,
     volume: 0.7,
+    vibrationEnabled: true,
     alertTypes: {
       scalping: true,
       mlTrading: true,
@@ -92,6 +94,36 @@ export function useSoundAlerts() {
     }
   }, []);
 
+  // Play vibration patterns
+  const playVibration = useCallback((type: 'beep' | 'chime' | 'notification') => {
+    if (!configRef.current.vibrationEnabled) return;
+    
+    if (Platform.OS !== 'web') {
+      try {
+        import('react-native').then(({ Vibration }) => {
+          switch (type) {
+            case 'beep':
+              // Short single vibration
+              Vibration.vibrate(200);
+              break;
+            case 'chime':
+              // Double vibration pattern
+              Vibration.vibrate([0, 150, 100, 150]);
+              break;
+            case 'notification':
+              // Triple vibration pattern for high importance
+              Vibration.vibrate([0, 100, 50, 100, 50, 200]);
+              break;
+          }
+        }).catch(() => {
+          console.log('Vibration not available');
+        });
+      } catch (error) {
+        console.log('Vibration error:', error);
+      }
+    }
+  }, []);
+
   // Play native alert sound (for mobile)
   const playNativeAlert = useCallback((type: 'beep' | 'chime' | 'notification') => {
     // For React Native, we would use expo-av or react-native-sound
@@ -112,13 +144,21 @@ export function useSoundAlerts() {
               break;
           }
         }).catch(() => {
-          console.log('Haptics not available, using console notification');
+          console.log('Haptics not available, trying vibration');
+          // Fallback to vibration if haptics not available
+          if (configRef.current.vibrationEnabled) {
+            playVibration(type);
+          }
         });
       } catch (error) {
         console.log('Native alert not available:', error);
+        // Fallback to vibration
+        if (configRef.current.vibrationEnabled) {
+          playVibration(type);
+        }
       }
     }
-  }, []);
+  }, [playVibration]);
 
   // Main alert function
   const playAlert = useCallback((trigger: AlertTrigger) => {
@@ -185,6 +225,20 @@ export function useSoundAlerts() {
       if (initializeAudio()) {
         playWebAlert(frequency, duration, soundType);
       }
+      // Web vibration API if available
+      if (configRef.current.vibrationEnabled && 'vibrate' in navigator) {
+        switch (soundType) {
+          case 'beep':
+            navigator.vibrate(200);
+            break;
+          case 'chime':
+            navigator.vibrate([150, 100, 150]);
+            break;
+          case 'notification':
+            navigator.vibrate([100, 50, 100, 50, 200]);
+            break;
+        }
+      }
     } else {
       playNativeAlert(soundType);
     }
@@ -202,6 +256,11 @@ export function useSoundAlerts() {
 
   const setVolume = useCallback((volume: number) => {
     configRef.current.volume = Math.max(0, Math.min(1, volume));
+  }, []);
+
+  const toggleVibration = useCallback(() => {
+    configRef.current.vibrationEnabled = !configRef.current.vibrationEnabled;
+    console.log(`📳 Vibration alerts ${configRef.current.vibrationEnabled ? 'enabled' : 'disabled'}`);
   }, []);
 
   // Test alert function
@@ -239,8 +298,10 @@ export function useSoundAlerts() {
     updateConfig,
     toggleAlerts,
     setVolume,
+    toggleVibration,
     testAlert,
     config: configRef.current,
     isEnabled: configRef.current.enabled,
+    isVibrationEnabled: configRef.current.vibrationEnabled,
   };
 }
