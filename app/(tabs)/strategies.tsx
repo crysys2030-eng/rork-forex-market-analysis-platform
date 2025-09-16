@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -21,6 +21,7 @@ import { useRealForexData } from '@/hooks/useRealForexData';
 import { useRealCryptoData } from '@/hooks/useRealCryptoData';
 
 interface TradingSignal {
+  id?: string;
   symbol: string;
   name: string;
   signal: 'BUY' | 'SELL' | 'HOLD';
@@ -33,6 +34,7 @@ interface TradingSignal {
   timeframe: string;
   indicators: string[];
   strength: 'WEAK' | 'MODERATE' | 'STRONG';
+  timestamp?: string;
 }
 
 interface StrategyPerformance {
@@ -46,9 +48,9 @@ interface StrategyPerformance {
 
 export default function StrategiesScreen() {
   const insets = useSafeAreaInsets();
-  const { forexData, refetch: refetchForex } = useRealForexData();
-  const { cryptoData, refetch: refetchCrypto } = useRealCryptoData();
-  const [signals, setSignals] = useState<TradingSignal[]>([]);
+  const { forexData } = useRealForexData();
+  const { cryptoData } = useRealCryptoData();
+  const [persistentSignals, setPersistentSignals] = useState<TradingSignal[]>([]);
   const [selectedTimeframe, setSelectedTimeframe] = useState('1H');
   const [selectedStrategy, setSelectedStrategy] = useState('ALL');
 
@@ -91,7 +93,7 @@ export default function StrategiesScreen() {
     },
   ];
 
-  const generateTradingSignals = () => {
+  const generateTradingSignals = useCallback(() => {
     const allData = [...forexData, ...cryptoData];
     const newSignals: TradingSignal[] = [];
 
@@ -200,16 +202,38 @@ export default function StrategiesScreen() {
       .sort((a, b) => b.confidence - a.confidence)
       .slice(0, 20);
 
-    setSignals(sortedSignals);
-  };
+    // Update persistent signals list - only add new unique signals
+    setPersistentSignals(prevSignals => {
+      const existingKeys = new Set(prevSignals.map(s => `${s.symbol}-${s.strategy}-${s.signal}`));
+      const newUniqueSignals = sortedSignals.filter(s => 
+        !existingKeys.has(`${s.symbol}-${s.strategy}-${s.signal}`)
+      );
+      
+      // Add timestamp to new signals for tracking
+      const timestampedNewSignals = newUniqueSignals.map(signal => ({
+        ...signal,
+        timestamp: new Date().toISOString(),
+        id: `${signal.symbol}-${signal.strategy}-${Date.now()}`
+      }));
+      
+      // Combine existing and new signals, limit to 50 total
+      const combined = [...prevSignals, ...timestampedNewSignals]
+        .sort((a, b) => b.confidence - a.confidence)
+        .slice(0, 50);
+      
+      return combined;
+    });
+  }, [forexData, cryptoData]);
 
   useEffect(() => {
-    generateTradingSignals();
-  }, [forexData, cryptoData, selectedTimeframe]);
+    if (forexData.length > 0 || cryptoData.length > 0) {
+      generateTradingSignals();
+    }
+  }, [forexData, cryptoData, selectedTimeframe, generateTradingSignals]);
 
 
 
-  const filteredSignals = signals.filter(signal => {
+  const filteredSignals = persistentSignals.filter(signal => {
     if (selectedStrategy === 'ALL') return true;
     return signal.strategy === selectedStrategy;
   });
@@ -374,7 +398,7 @@ export default function StrategiesScreen() {
               </View>
             ) : (
               filteredSignals.map((signal) => (
-                <View key={`${signal.symbol}-${signal.strategy}`} style={styles.signalCard}>
+                <View key={signal.id || `${signal.symbol}-${signal.strategy}-${signal.timestamp}`} style={styles.signalCard}>
                   <View style={styles.signalHeader}>
                     <View style={styles.signalInfo}>
                       <Text style={styles.signalSymbol}>{signal.symbol}</Text>
@@ -436,7 +460,14 @@ export default function StrategiesScreen() {
                       </View>
                       <View style={styles.signalMetric}>
                         <Clock color="#6B7280" size={14} />
-                        <Text style={styles.signalValue}>Live</Text>
+                        <Text style={styles.signalValue}>
+                          {signal.timestamp ? 
+                            new Date(signal.timestamp).toLocaleTimeString('en-US', { 
+                              hour: '2-digit', 
+                              minute: '2-digit' 
+                            }) : 'Live'
+                          }
+                        </Text>
                       </View>
                     </View>
 
