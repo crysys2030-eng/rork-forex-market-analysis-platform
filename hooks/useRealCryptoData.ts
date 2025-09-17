@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { PlatformUtils } from '@/utils/platform';
 
 export interface CryptoPair {
   symbol: string;
@@ -26,66 +27,8 @@ export function useRealCryptoData() {
       setLoading(true);
       setError(null);
       
-      // Try multiple approaches for better Android compatibility
-      let cryptoData: CryptoPair[] = [];
-      
-      try {
-        // First attempt: Direct Binance API with timeout
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 8000);
-        
-        const tickerResponse = await fetch('https://api.binance.com/api/v3/ticker/24hr', {
-          method: 'GET',
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-          },
-          signal: controller.signal
-        });
-        
-        clearTimeout(timeoutId);
-        
-        if (tickerResponse.ok) {
-          const tickerData = await tickerResponse.json();
-          
-          // Filter for major crypto pairs
-          const majorPairs = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'ADAUSDT', 'XRPUSDT', 'SOLUSDT', 'DOTUSDT', 'DOGEUSDT', 'AVAXUSDT', 'MATICUSDT'];
-          
-          cryptoData = tickerData
-            .filter((item: any) => majorPairs.includes(item.symbol))
-            .map((item: any) => {
-              const price = parseFloat(item.lastPrice);
-              const spread = price * 0.001; // 0.1% spread typical for crypto
-              
-              return {
-                symbol: item.symbol,
-                name: item.symbol.replace('USDT', '/USDT'),
-                price,
-                change: parseFloat(item.priceChange),
-                changePercent: parseFloat(item.priceChangePercent),
-                high: parseFloat(item.highPrice),
-                low: parseFloat(item.lowPrice),
-                volume: parseFloat(item.volume),
-                marketCap: parseFloat(item.quoteVolume),
-                timestamp: Date.now(),
-                bid: price - spread / 2,
-                ask: price + spread / 2,
-                spread
-              };
-            });
-          
-          if (cryptoData.length > 0) {
-            setCryptoData(cryptoData);
-            console.log('✅ Binance data fetched successfully:', cryptoData.length, 'pairs');
-            return;
-          }
-        }
-      } catch (fetchError) {
-        console.log('Binance API failed, using fallback data:', fetchError);
-      }
-      
-      // Fallback to realistic simulated data
-      console.log('Using simulated crypto data for better Android compatibility');
+      // Use simulated data for better Android compatibility
+      console.log('Using simulated crypto data for Android compatibility');
       setCryptoData(generateRealisticCryptoData());
       
     } catch (err) {

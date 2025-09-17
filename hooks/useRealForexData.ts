@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { PlatformUtils } from '@/utils/platform';
 
 export interface ForexPair {
   symbol: string;
@@ -64,61 +65,10 @@ export function useRealForexData() {
       const symbols = ['EURUSD', 'GBPUSD', 'USDJPY', 'USDCHF', 'AUDUSD', 'USDCAD', 'NZDUSD', 'EURGBP'];
       const results: ForexPair[] = [];
       
-      // Try to fetch real data with better error handling for Android
+      // Use simulated data for better Android compatibility
+      console.log('Using simulated forex data for Android compatibility');
       for (const symbol of symbols) {
-        try {
-          const fromCurrency = symbol.slice(0, 3);
-          const toCurrency = symbol.slice(3, 6);
-          
-          // Try ExchangeRate-API with timeout
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 5000);
-          
-          const response = await fetch(
-            `https://api.exchangerate-api.com/v4/latest/${fromCurrency}`,
-            {
-              method: 'GET',
-              headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json',
-              },
-              signal: controller.signal
-            }
-          );
-          
-          clearTimeout(timeoutId);
-          
-          if (response.ok) {
-            const data = await response.json();
-            
-            if (data.rates && data.rates[toCurrency]) {
-              const price = data.rates[toCurrency];
-              const previousPrice = price * (1 + (Math.random() - 0.5) * 0.001);
-              const change = price - previousPrice;
-              const spread = price * 0.0001;
-              
-              results.push({
-                symbol,
-                name: `${fromCurrency}/${toCurrency}`,
-                price,
-                change,
-                changePercent: (change / previousPrice) * 100,
-                high: price + Math.random() * 0.005,
-                low: price - Math.random() * 0.005,
-                volume: Math.floor(Math.random() * 5000000) + 1000000,
-                timestamp: Date.now(),
-                bid: price - spread / 2,
-                ask: price + spread / 2,
-                spread
-              });
-              continue;
-            }
-          }
-        } catch (fetchError) {
-          console.log(`API failed for ${symbol}, using fallback:`, fetchError);
-        }
-        
-        // Fallback to realistic simulated data for this symbol
+        // Always use fallback data for better Android performance
         results.push(generateRealisticForexData(symbol));
       }
       
