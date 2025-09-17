@@ -750,11 +750,11 @@ export function useEnhancedMLTrading(marketData: MarketData[]) {
             timeframe: '15m',
             modelUsed: model.name,
             features: {
-              technicalScore: 75 + Math.random() * 20,
-              sentimentScore: 70 + Math.random() * 25,
-              volumeScore: item.volume ? 80 + Math.random() * 15 : 60 + Math.random() * 20,
-              momentumScore: 50 + (item.changePercent * 5) + Math.random() * 20,
-              aiScore: 85 + Math.random() * 10,
+              technicalScore: Math.round(75 + Math.random() * 20),
+              sentimentScore: Math.round(70 + Math.random() * 25),
+              volumeScore: Math.round(item.volume ? 80 + Math.random() * 15 : 60 + Math.random() * 20),
+              momentumScore: Math.round(50 + (item.changePercent * 5) + Math.random() * 20),
+              aiScore: Math.round(85 + Math.random() * 10),
             },
             prediction: {
               priceTarget: action === 'BUY' ? item.price * 1.025 : item.price * 0.975,
@@ -824,7 +824,7 @@ export function useEnhancedMLTrading(marketData: MarketData[]) {
       if (timeoutId) clearTimeout(timeoutId);
       if (intervalId) clearInterval(intervalId);
     };
-  }, []); // Remove all dependencies to prevent loops
+  }, []); // Empty dependency array to prevent loops
 
   const updateConfig = useCallback((newConfig: Partial<MLConfig>) => {
     setConfig(prev => {
