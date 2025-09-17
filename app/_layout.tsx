@@ -6,6 +6,7 @@ import { StyleSheet, View, Text, TouchableOpacity, Platform, StatusBar } from "r
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { AlertTriangle, RefreshCw } from "lucide-react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { RealTimeDataProvider } from "@/contexts/RealTimeDataContext";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 try {
@@ -113,16 +114,18 @@ export default function RootLayout() {
     <ErrorBoundary>
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
-          <GestureHandlerRootView style={styles.container}>
-            {Platform.OS === 'android' && (
-              <StatusBar 
-                barStyle="light-content" 
-                backgroundColor="#111827" 
-                translucent={false}
-              />
-            )}
-            <RootLayoutNav />
-          </GestureHandlerRootView>
+          <RealTimeDataProvider>
+            <GestureHandlerRootView style={styles.container}>
+              {Platform.OS === 'android' && (
+                <StatusBar 
+                  barStyle="light-content" 
+                  backgroundColor="#111827" 
+                  translucent={false}
+                />
+              )}
+              <RootLayoutNav />
+            </GestureHandlerRootView>
+          </RealTimeDataProvider>
         </QueryClientProvider>
       </SafeAreaProvider>
     </ErrorBoundary>
