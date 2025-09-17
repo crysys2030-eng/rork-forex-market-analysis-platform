@@ -117,21 +117,47 @@ export const PlatformUtils = {
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
-          'User-Agent': Platform.OS === 'android' ? 'ReactNative/Android' : 'ReactNative/Web',
+          'User-Agent': Platform.OS === 'android' ? 'ReactNative/Android' : Platform.OS === 'ios' ? 'ReactNative/iOS' : 'ReactNative/Web',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache',
           ...options.headers,
         },
-        // Android sometimes needs explicit mode
-        mode: Platform.OS === 'android' ? 'cors' : (options.mode || 'cors'),
-        // Disable cache for real-time data
+        // Android-specific network settings
+        mode: 'cors',
         cache: 'no-cache',
+        credentials: 'omit', // Don't send credentials for public APIs
+        redirect: 'follow',
+        referrerPolicy: 'no-referrer',
       };
       
-      const response = await fetch(url, androidSafeOptions);
-      clearTimeout(timeoutId);
-      return response;
+      // Add retry logic for Android network issues
+      let lastError: Error | null = null;
+      const maxRetries = Platform.OS === 'android' ? 2 : 1;
+      
+      for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+          const response = await fetch(url, androidSafeOptions);
+          clearTimeout(timeoutId);
+          return response;
+        } catch (error) {
+          lastError = error as Error;
+          
+          // Don't retry on abort or timeout
+          if (error instanceof Error && (error.name === 'AbortError' || error.message.includes('timeout'))) {
+            break;
+          }
+          
+          // Wait before retry (only on Android)
+          if (attempt < maxRetries && Platform.OS === 'android') {
+            await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
+          }
+        }
+      }
+      
+      throw lastError;
     } catch (error) {
       clearTimeout(timeoutId);
-      console.warn(`Fetch failed for ${url}:`, error);
+      console.warn(`Fetch failed for ${url} after retries:`, error);
       throw error;
     }
   },
@@ -139,17 +165,30 @@ export const PlatformUtils = {
   // Safe fetch with fallback for Android
   safeFetch: async (url: string, options: RequestInit = {}, timeout: number = 8000) => {
     try {
-      return await PlatformUtils.fetchWithTimeout(url, options, timeout);
+      const response = await PlatformUtils.fetchWithTimeout(url, options, timeout);
+      
+      // Additional validation for Android
+      if (Platform.OS === 'android' && !response.ok && response.status === 0) {
+        throw new Error('Network connection failed');
+      }
+      
+      return response;
     } catch (error) {
-      console.warn(`Safe fetch failed for ${url}, using fallback:`, error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.warn(`Safe fetch failed for ${url}:`, errorMessage);
+      
       // Return a mock response that indicates failure but doesn't crash
       return {
         ok: false,
         status: 0,
         statusText: 'Network Error',
-        json: async () => ({}),
-        text: async () => '',
-      } as Response;
+        json: async () => {
+          throw new Error('Network request failed');
+        },
+        text: async () => {
+          throw new Error('Network request failed');
+        },
+      } as unknown as Response;
     }
   },
   

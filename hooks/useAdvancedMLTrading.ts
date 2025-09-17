@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { PlatformUtils } from '@/utils/platform';
 import { AITradingSignal, AIIndicatorResult, MLPrediction, MarketCondition, BacktestResult, AITradingConfig } from '@/types/forex';
 import { useRealTimeData } from './useRealTimeData';
 
@@ -78,7 +79,7 @@ export function useAdvancedMLTrading() {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
       
-      const response = await fetch('https://toolkit.rork.com/text/llm/', {
+      const response = await PlatformUtils.safeFetch('https://toolkit.rork.com/text/llm/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

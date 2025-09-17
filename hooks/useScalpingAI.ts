@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Platform } from 'react-native';
+import { PlatformUtils } from '@/utils/platform';
 
 export interface ScalpingSignal {
   id: string;
@@ -123,8 +124,8 @@ export function useScalpingAI(marketData: MarketData[]) {
     try {
       // Fetch both 24hr ticker and current prices for more accurate data
       const [tickerResponse, priceResponse] = await Promise.all([
-        fetch('https://api.binance.com/api/v3/ticker/24hr'),
-        fetch('https://api.binance.com/api/v3/ticker/price')
+        PlatformUtils.safeFetch('https://api.binance.com/api/v3/ticker/24hr'),
+        PlatformUtils.safeFetch('https://api.binance.com/api/v3/ticker/price')
       ]);
       
       if (!tickerResponse.ok || !priceResponse.ok) {
@@ -167,7 +168,7 @@ export function useScalpingAI(marketData: MarketData[]) {
           const toCurrency = pair.slice(3, 6);
           
           // Try exchangerate-api.com first (free, no key required)
-          const response = await fetch(
+          const response = await PlatformUtils.safeFetch(
             `https://api.exchangerate-api.com/v4/latest/${fromCurrency}`,
             { 
               method: 'GET',
@@ -306,7 +307,7 @@ Respond in valid JSON format with these exact keys:
   "recommendation": "string"
 }`;
 
-      const response = await fetch('https://toolkit.rork.com/text/llm/', {
+      const response = await PlatformUtils.safeFetch('https://toolkit.rork.com/text/llm/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -520,7 +521,7 @@ Generate a scalping signal if conditions are favorable. Consider:
 Respond with JSON containing: action (BUY/SELL/HOLD), confidence (0-100), entryPrice, stopLoss, takeProfit, reason, strategy, riskLevel.`;
 
         try {
-          const response = await fetch('https://toolkit.rork.com/text/llm/', {
+          const response = await PlatformUtils.safeFetch('https://toolkit.rork.com/text/llm/', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

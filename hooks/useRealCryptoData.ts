@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { safeFetch } from '@/utils/platform';
+import { PlatformUtils } from '@/utils/platform';
 
 export interface CryptoPair {
   symbol: string;
@@ -33,9 +33,9 @@ export function useRealCryptoData() {
         const symbols = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'ADAUSDT', 'XRPUSDT', 'SOLUSDT', 'DOTUSDT', 'DOGEUSDT', 'AVAXUSDT', 'MATICUSDT'];
         
         // Fetch 24hr ticker statistics for all symbols using safe fetch
-        const tickerResponse = await safeFetch('https://api.binance.com/api/v3/ticker/24hr', {
+        const tickerResponse = await PlatformUtils.safeFetch('https://api.binance.com/api/v3/ticker/24hr', {
           method: 'GET',
-        }, 5000);
+        }, 8000);
         
         if (tickerResponse.ok) {
           const tickerData = await tickerResponse.json();
@@ -84,9 +84,9 @@ export function useRealCryptoData() {
         try {
           // Backup: Try alternative crypto API
           console.log('🔄 Trying alternative crypto API...');
-          const altResponse = await safeFetch('https://api.coinbase.com/v2/exchange-rates?currency=USD', {
+          const altResponse = await PlatformUtils.safeFetch('https://api.coinbase.com/v2/exchange-rates?currency=USD', {
             method: 'GET',
-          }, 5000);
+          }, 8000);
           
           if (altResponse.ok) {
             await altResponse.json(); // Just check if response is valid

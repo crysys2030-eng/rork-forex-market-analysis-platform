@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { safeFetch } from '@/utils/platform';
+import { PlatformUtils } from '@/utils/platform';
 
 export interface ForexPair {
   symbol: string;
@@ -68,9 +68,9 @@ export function useRealForexData() {
       try {
         // Try to fetch real forex data from exchangerate-api.com (free tier: 1500 requests/month)
         console.log('🔄 Fetching real forex data...');
-        const response = await safeFetch('https://api.exchangerate-api.com/v4/latest/USD', {
+        const response = await PlatformUtils.safeFetch('https://api.exchangerate-api.com/v4/latest/USD', {
           method: 'GET',
-        }, 5000);
+        }, 8000);
         
         if (response.ok) {
           const data = await response.json();
