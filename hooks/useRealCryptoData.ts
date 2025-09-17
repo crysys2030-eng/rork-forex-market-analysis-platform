@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react';
-import { PlatformUtils } from '@/utils/platform';
 
 export interface CryptoPair {
   symbol: string;
@@ -27,12 +26,135 @@ export function useRealCryptoData() {
       setLoading(true);
       setError(null);
       
-      // Use simulated data for better Android compatibility
-      console.log('Using simulated crypto data for Android compatibility');
-      setCryptoData(generateRealisticCryptoData());
+      try {
+        // Fetch real crypto data from Binance API (free, no API key required)
+        console.log('🔄 Fetching real crypto data from Binance...');
+        const symbols = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'ADAUSDT', 'XRPUSDT', 'SOLUSDT', 'DOTUSDT', 'DOGEUSDT', 'AVAXUSDT', 'MATICUSDT'];
+        
+        // Fetch 24hr ticker statistics for all symbols
+        const tickerResponse = await fetch('https://api.binance.com/api/v3/ticker/24hr', {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+          },
+        });
+        
+        if (tickerResponse.ok) {
+          const tickerData = await tickerResponse.json();
+          const results: CryptoPair[] = [];
+          
+          for (const symbol of symbols) {
+            const ticker = tickerData.find((t: any) => t.symbol === symbol);
+            if (ticker) {
+              const price = parseFloat(ticker.lastPrice);
+              const change = parseFloat(ticker.priceChange);
+              const changePercent = parseFloat(ticker.priceChangePercent);
+              const high = parseFloat(ticker.highPrice);
+              const low = parseFloat(ticker.lowPrice);
+              const volume = parseFloat(ticker.volume);
+              const spread = price * 0.001; // 0.1% spread typical for crypto
+              
+              results.push({
+                symbol,
+                name: symbol.replace('USDT', '/USDT'),
+                price,
+                change,
+                changePercent,
+                high,
+                low,
+                volume,
+                marketCap: price * volume * 100, // Approximate market cap
+                timestamp: Date.now(),
+                bid: price - spread / 2,
+                ask: price + spread / 2,
+                spread
+              });
+            }
+          }
+          
+          if (results.length > 0) {
+            setCryptoData(results);
+            console.log('✅ Real crypto data fetched successfully:', results.length, 'pairs');
+            return;
+          }
+        } else {
+          throw new Error(`Binance API HTTP ${tickerResponse.status}`);
+        }
+      } catch (apiError) {
+        console.log('⚠️ Binance API failed, trying backup sources:', apiError);
+        
+        try {
+          // Backup: Try CoinGecko API (free tier: 10-50 calls/minute)
+          console.log('🔄 Trying CoinGecko API...');
+          const coinGeckoResponse = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,binancecoin,cardano,ripple,solana,polkadot,dogecoin,avalanche-2,polygon&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true', {
+            method: 'GET',
+            headers: {
+              'Accept': 'application/json',
+            },
+          });
+          
+          if (coinGeckoResponse.ok) {
+            const coinGeckoData = await coinGeckoResponse.json();
+            const results: CryptoPair[] = [];
+            
+            const coinMapping = {
+              'bitcoin': 'BTCUSDT',
+              'ethereum': 'ETHUSDT',
+              'binancecoin': 'BNBUSDT',
+              'cardano': 'ADAUSDT',
+              'ripple': 'XRPUSDT',
+              'solana': 'SOLUSDT',
+              'polkadot': 'DOTUSDT',
+              'dogecoin': 'DOGEUSDT',
+              'avalanche-2': 'AVAXUSDT',
+              'polygon': 'MATICUSDT'
+            };
+            
+            for (const [coinId, symbol] of Object.entries(coinMapping)) {
+              const coinData = coinGeckoData[coinId];
+              if (coinData) {
+                const price = coinData.usd;
+                const changePercent = coinData.usd_24h_change || 0;
+                const change = (price * changePercent) / 100;
+                const volume = coinData.usd_24h_vol || price * 1000000;
+                const spread = price * 0.001;
+                
+                results.push({
+                  symbol,
+                  name: symbol.replace('USDT', '/USDT'),
+                  price,
+                  change,
+                  changePercent,
+                  high: price * (1 + Math.abs(changePercent) / 200),
+                  low: price * (1 - Math.abs(changePercent) / 200),
+                  volume,
+                  marketCap: price * volume * 100,
+                  timestamp: Date.now(),
+                  bid: price - spread / 2,
+                  ask: price + spread / 2,
+                  spread
+                });
+              }
+            }
+            
+            if (results.length > 0) {
+              setCryptoData(results);
+              console.log('✅ CoinGecko data fetched successfully:', results.length, 'pairs');
+              return;
+            }
+          }
+        } catch (coinGeckoError) {
+          console.log('⚠️ CoinGecko API also failed:', coinGeckoError);
+        }
+        
+        // Final fallback to realistic simulated data
+        console.log('📊 Using realistic simulated crypto data');
+        setCryptoData(generateRealisticCryptoData());
+      }
       
     } catch (err) {
-      console.log('Crypto data fetch error, using fallback:', err);
+      console.log('❌ Crypto data error, using fallback:', err);
+      setError('Failed to fetch crypto data');
       // Always provide data, never leave empty
       setCryptoData(generateRealisticCryptoData());
     } finally {
