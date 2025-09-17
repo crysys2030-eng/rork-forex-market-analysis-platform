@@ -9,15 +9,14 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Brain, TrendingUp, Target, Activity, Bot, Zap, Cpu, Bell } from 'lucide-react-native';
+import { Brain, TrendingUp, Target, Activity, Bot, Cpu, Bell, Settings, BarChart3, Layers, Sparkles, RefreshCw } from 'lucide-react-native';
 import { useRealForexData } from '@/hooks/useRealForexData';
 import { useRealCryptoData } from '@/hooks/useRealCryptoData';
-import { useMLTrading } from '@/hooks/useMLTrading';
+import { useEnhancedMLTrading } from '@/hooks/useEnhancedMLTrading';
 import { MLSignalCard } from '@/components/MLSignalCard';
 import { MLModelCard } from '@/components/MLModelCard';
 import { MLPerformanceCard } from '@/components/MLPerformanceCard';
 import { MLConfigCard } from '@/components/MLConfigCard';
-import { ActiveIndicatorAlert } from '@/components/ActiveIndicatorAlert';
 import { AlertHistoryModal } from '@/components/AlertHistoryModal';
 import { useAlertHistory } from '@/hooks/useAlertHistory';
 import { useSoundAlerts } from '@/hooks/useSoundAlerts';
@@ -35,11 +34,12 @@ export default function MLTradingScreen() {
     models, 
     performance, 
     loading,
+    aiProcessing,
     config,
-    activePairs,
+    refreshAnalysis,
     updateConfig,
     retrainModels 
-  } = useMLTrading(allMarketData);
+  } = useEnhancedMLTrading(allMarketData);
   
   const {
     addAlert,
@@ -59,39 +59,43 @@ export default function MLTradingScreen() {
   const [showHistoryModal, setShowHistoryModal] = React.useState(false);
   const [selectedSymbolHistory, setSelectedSymbolHistory] = React.useState<string | undefined>();
   
-  const [aiProcessing, setAiProcessing] = React.useState(false);
-  
-  // Simulate AI processing indicator
-  React.useEffect(() => {
-    const interval = setInterval(() => {
-      setAiProcessing(prev => !prev);
-    }, 8000); // Toggle every 8 seconds to show AI is working
-    
-    return () => clearInterval(interval);
-  }, []);
+  const [selectedTab, setSelectedTab] = React.useState<'signals' | 'models' | 'performance' | 'config'>('signals');
+  const [refreshing, setRefreshing] = React.useState(false);
 
   const highAccuracySignals = signals.filter((signal: any) => signal.accuracy > 90);
   const aiEnhancedSignals = signals.filter((signal: any) => signal.aiEnhanced);
   const activeModels = models.filter((model: any) => model.status === 'ACTIVE');
   const aiModels = models.filter((model: any) => model.aiEnhanced);
+  const ensembleSignals = signals.filter((signal: any) => (signal.ensembleVotes || 0) > 1);
+  
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await refreshAnalysis();
+    } finally {
+      setRefreshing(false);
+    }
+  };
   
   // Get active ML indicators for each currency
   const activeMLIndicators = allMarketData
     .filter(item => {
-      const pairSignals = signals.filter((s: any) => s.symbol === item.symbol && s.accuracy > 80);
+      const pairSignals = signals.filter((s: any) => s.symbol === item.symbol && s.accuracy > 85);
       return pairSignals.length > 0;
     })
     .map(item => {
-      const pairSignals = signals.filter((s: any) => s.symbol === item.symbol && s.accuracy > 80);
+      const pairSignals = signals.filter((s: any) => s.symbol === item.symbol && s.accuracy > 85);
       const avgConfidence = pairSignals.reduce((sum: number, s: any) => sum + s.confidence, 0) / pairSignals.length;
+      const aiSignals = pairSignals.filter((s: any) => s.aiEnhanced).length;
       return {
         symbol: item.symbol,
         signalCount: pairSignals.length,
-        confidence: Math.round(avgConfidence)
+        confidence: Math.round(avgConfidence),
+        aiSignals
       };
     })
-    .sort((a, b) => b.signalCount - a.signalCount)
-    .slice(0, 5);
+    .sort((a, b) => (b.confidence * b.signalCount) - (a.confidence * a.signalCount))
+    .slice(0, 8);
 
   // Add ML trading alerts to history when new high-accuracy signals are detected
   React.useEffect(() => {
@@ -130,7 +134,7 @@ export default function MLTradingScreen() {
         });
       }
     });
-  }, [highAccuracySignals.length, addAlert, getAlertsForSymbol, playAlert]);
+  }, [highAccuracySignals, addAlert, getAlertsForSymbol, playAlert]);
 
   return (
     <View style={styles.container}>
@@ -138,83 +142,100 @@ export default function MLTradingScreen() {
         colors={['#111827', '#0F172A']}
         style={[styles.gradient, { paddingTop: insets.top }]}
       >
-        {/* Enhanced Header */}
+        {/* Professional Header */}
         <View style={styles.header}>
           <View style={styles.headerContent}>
             <View style={styles.titleContainer}>
-              <Bot color="#00D4AA" size={24} />
-              <Text style={styles.title}>Enhanced ML Trading</Text>
-              {aiProcessing && (
-                <ActivityIndicator size="small" color="#00D4AA" style={styles.aiProcessingIndicator} />
-              )}
-            </View>
-            <Text style={styles.subtitle}>Real-Time AI Analysis • Binance & Forex Data • DeepSeek AI</Text>
-            
-            {/* Active Pairs Display - Enhanced */}
-            {activePairs && activePairs.length > 0 && (
-              <View style={styles.activePairsContainer}>
-                <View style={styles.pairsHeaderRow}>
-                  <Text style={styles.activePairsLabel}>Active Scalping Pairs</Text>
-                  <View style={styles.pairCountBadge}>
-                    <Text style={styles.pairCountText}>{activePairs.length}/5</Text>
-                  </View>
-                </View>
-                <Text style={styles.pairsSubtitle}>Auto-rotating every 20s • Oldest pair replaced when new pair found</Text>
-                <View style={styles.pairsRow}>
-                  {activePairs.map((pair, index) => {
-                    const isNewest = index === 0; // First item is newest due to sorting
-                    const isOldest = index === activePairs.length - 1;
-                    return (
-                      <View key={pair.symbol} style={[
-                        styles.pairChip,
-                        isNewest && styles.newestPairChip,
-                        isOldest && activePairs.length === 5 && styles.oldestPairChip
-                      ]}>
-                        <Text style={[
-                          styles.pairSymbol,
-                          isNewest && styles.newestPairText
-                        ]}>{pair.symbol}</Text>
-                        <Text style={[
-                          styles.pairSignals,
-                          isNewest && styles.newestPairSignals
-                        ]}>{pair.signalCount}</Text>
-                        {isNewest && (
-                          <View style={styles.newBadge}>
-                            <Text style={styles.newBadgeText}>NEW</Text>
-                          </View>
-                        )}
-                        {isOldest && activePairs.length === 5 && (
-                          <View style={styles.oldBadge}>
-                            <Text style={styles.oldBadgeText}>NEXT</Text>
-                          </View>
-                        )}
-                      </View>
-                    );
-                  })}
-                </View>
+              <View style={styles.titleRow}>
+                <Sparkles color="#00D4AA" size={28} />
+                <Text style={styles.title}>Professional ML Trading</Text>
+                {(aiProcessing || loading) && (
+                  <ActivityIndicator size="small" color="#00D4AA" style={styles.processingIndicator} />
+                )}
               </View>
-            )}
+              <TouchableOpacity 
+                onPress={handleRefresh}
+                style={styles.refreshButton}
+                disabled={refreshing}
+              >
+                <RefreshCw 
+                  color={refreshing ? "#6B7280" : "#8B5CF6"} 
+                  size={20} 
+                  style={refreshing ? styles.spinning : undefined}
+                />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.subtitle}>Advanced AI Models • Real-Time Analysis • Professional Trading Signals</Text>
+            
+            {/* Professional Stats Overview */}
+            <View style={styles.statsOverview}>
+              <View style={styles.statCard}>
+                <View style={styles.statIcon}>
+                  <Brain color="#8B5CF6" size={20} />
+                </View>
+                <Text style={styles.statValue}>{signals.length}</Text>
+                <Text style={styles.statLabel}>Active Signals</Text>
+              </View>
+              
+              <View style={styles.statCard}>
+                <View style={styles.statIcon}>
+                  <Bot color="#00D4AA" size={20} />
+                </View>
+                <Text style={[styles.statValue, { color: '#00D4AA' }]}>{aiEnhancedSignals.length}</Text>
+                <Text style={styles.statLabel}>AI Enhanced</Text>
+              </View>
+              
+              <View style={styles.statCard}>
+                <View style={styles.statIcon}>
+                  <Layers color="#F59E0B" size={20} />
+                </View>
+                <Text style={[styles.statValue, { color: '#F59E0B' }]}>{ensembleSignals.length}</Text>
+                <Text style={styles.statLabel}>Ensemble</Text>
+              </View>
+              
+              <View style={styles.statCard}>
+                <View style={styles.statIcon}>
+                  <Target color="#10B981" size={20} />
+                </View>
+                <Text style={[styles.statValue, { color: '#10B981' }]}>{highAccuracySignals.length}</Text>
+                <Text style={styles.statLabel}>High Accuracy</Text>
+              </View>
+            </View>
           </View>
           
-          <View style={styles.statsContainer}>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{signals.length}</Text>
-              <Text style={styles.statLabel}>Live Signals</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={[styles.statValue, { color: '#00D4AA' }]}>{aiEnhancedSignals.length}</Text>
-              <Text style={styles.statLabel}>AI Signals</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={[styles.statValue, { color: activePairs?.length === 5 ? '#10B981' : '#F59E0B' }]}>{activePairs?.length || 0}/5</Text>
-              <Text style={styles.statLabel}>Scalping Pairs</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={[styles.statValue, { color: (performance?.overallAccuracy || 0) > 85 ? '#10B981' : '#F59E0B' }]}>
-                {performance?.overallAccuracy ? performance.overallAccuracy.toFixed(1) : '0'}%
-              </Text>
-              <Text style={styles.statLabel}>Accuracy</Text>
-            </View>
+          {/* Professional Tab Navigation */}
+          <View style={styles.tabNavigation}>
+            <TouchableOpacity 
+              style={[styles.tabButton, selectedTab === 'signals' && styles.activeTab]}
+              onPress={() => setSelectedTab('signals')}
+            >
+              <TrendingUp color={selectedTab === 'signals' ? '#FFFFFF' : '#9CA3AF'} size={16} />
+              <Text style={[styles.tabText, selectedTab === 'signals' && styles.activeTabText]}>Signals</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.tabButton, selectedTab === 'models' && styles.activeTab]}
+              onPress={() => setSelectedTab('models')}
+            >
+              <Cpu color={selectedTab === 'models' ? '#FFFFFF' : '#9CA3AF'} size={16} />
+              <Text style={[styles.tabText, selectedTab === 'models' && styles.activeTabText]}>Models</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.tabButton, selectedTab === 'performance' && styles.activeTab]}
+              onPress={() => setSelectedTab('performance')}
+            >
+              <BarChart3 color={selectedTab === 'performance' ? '#FFFFFF' : '#9CA3AF'} size={16} />
+              <Text style={[styles.tabText, selectedTab === 'performance' && styles.activeTabText]}>Performance</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.tabButton, selectedTab === 'config' && styles.activeTab]}
+              onPress={() => setSelectedTab('config')}
+            >
+              <Settings color={selectedTab === 'config' ? '#FFFFFF' : '#9CA3AF'} size={16} />
+              <Text style={[styles.tabText, selectedTab === 'config' && styles.activeTabText]}>Config</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -230,158 +251,195 @@ export default function MLTradingScreen() {
             onToggleVibration={toggleVibration}
             onTest={() => testAlert('ML_TRADING')}
           />
-          {/* Active ML Indicator Alerts */}
-          {activeMLIndicators.length > 0 && (
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Bell color="#8B5CF6" size={20} />
-                <Text style={styles.sectionTitle}>Active ML Indicators</Text>
-                <TouchableOpacity 
-                  onPress={() => setShowHistoryModal(true)}
-                  style={styles.historyButton}
-                >
-                  <Text style={styles.historyButtonText}>History</Text>
-                </TouchableOpacity>
-              </View>
-              {activeMLIndicators.map((indicator) => (
-                <ActiveIndicatorAlert
-                  key={indicator.symbol}
-                  symbol={indicator.symbol}
-                  indicatorType="ML_TRADING"
-                  signalCount={indicator.signalCount}
-                  confidence={indicator.confidence}
-                  onPress={() => {
-                    setSelectedSymbolHistory(indicator.symbol);
-                    setShowHistoryModal(true);
-                  }}
-                />
-              ))}
-            </View>
-          )}
-          {/* ML Configuration */}
-          <MLConfigCard 
-            config={config}
-            onConfigUpdate={updateConfig}
-            onRetrain={retrainModels}
-          />
-
-          {/* Performance Overview */}
-          <MLPerformanceCard 
-            performance={performance}
-            loading={loading}
-          />
-
-          {/* AI Enhanced Models */}
-          {aiModels.length > 0 && (
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Cpu color="#00D4AA" size={20} />
-                <Text style={styles.sectionTitle}>AI Enhanced Models</Text>
-              </View>
-              {aiModels.map((model: any, index: number) => (
-                <MLModelCard 
-                  key={`ai-${model.id}-${index}`}
-                  model={model}
-                />
-              ))}
-            </View>
-          )}
           
-          {/* All Active ML Models */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Activity color="#8B5CF6" size={20} />
-              <Text style={styles.sectionTitle}>All Active Models</Text>
-            </View>
-            {activeModels.length > 0 ? (
-              activeModels.map((model: any, index: number) => (
-                <MLModelCard 
-                  key={`${model.id}-${index}`}
-                  model={model}
-                />
-              ))
-            ) : (
-              <View style={styles.noDataContainer}>
-                <Cpu color="#6B7280" size={32} />
-                <Text style={styles.noDataText}>No Active Models</Text>
-                <Text style={styles.noDataSubtext}>Models are being initialized...</Text>
-                {loading && <ActivityIndicator size="small" color="#8B5CF6" style={styles.loadingIndicator} />}
-              </View>
-            )}
-          </View>
-
-          {/* AI Enhanced Signals */}
-          {aiEnhancedSignals.length > 0 && (
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Zap color="#00D4AA" size={20} />
-                <Text style={styles.sectionTitle}>AI Enhanced Signals</Text>
-                <View style={styles.aiIndicator}>
-                  <Bot color="#00D4AA" size={14} />
-                  <Text style={styles.aiIndicatorText}>{aiEnhancedSignals.length}</Text>
-                </View>
-              </View>
-              {aiEnhancedSignals.map((signal: any, index: number) => (
-                <MLSignalCard 
-                  key={`ai-${signal.id}-${index}`}
-                  signal={signal}
-                />
-              ))}
-            </View>
-          )}
-          
-          {/* High Accuracy Signals */}
-          {highAccuracySignals.length > 0 && (
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Target color="#10B981" size={20} />
-                <Text style={styles.sectionTitle}>Premium Signals (90%+ Accuracy)</Text>
-              </View>
-              {highAccuracySignals.map((signal: any, index: number) => (
-                <MLSignalCard 
-                  key={`high-${signal.id}-${index}`}
-                  signal={signal}
-                />
-              ))}
-            </View>
-          )}
-
-          {/* All Enhanced ML Signals */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <TrendingUp color="#8B5CF6" size={20} />
-              <Text style={styles.sectionTitle}>All ML Trading Signals</Text>
-              {performance && (
-                <View style={styles.performanceIndicator}>
-                  <Text style={styles.performanceText}>
-                    {signals.length} Total • {activePairs?.length || 0} Pairs
-                  </Text>
+          {/* Tab Content */}
+          {selectedTab === 'signals' && (
+            <>
+              {/* Active ML Indicator Alerts */}
+              {activeMLIndicators.length > 0 && (
+                <View style={styles.section}>
+                  <View style={styles.sectionHeader}>
+                    <Bell color="#8B5CF6" size={20} />
+                    <Text style={styles.sectionTitle}>Active ML Indicators</Text>
+                    <TouchableOpacity 
+                      onPress={() => setShowHistoryModal(true)}
+                      style={styles.historyButton}
+                    >
+                      <Text style={styles.historyButtonText}>History</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <View style={styles.indicatorGrid}>
+                    {activeMLIndicators.map((indicator) => (
+                      <View key={indicator.symbol} style={styles.indicatorCard}>
+                        <Text style={styles.indicatorSymbol}>{indicator.symbol}</Text>
+                        <View style={styles.indicatorStats}>
+                          <Text style={styles.indicatorValue}>{indicator.signalCount}</Text>
+                          <Text style={styles.indicatorLabel}>Signals</Text>
+                        </View>
+                        <View style={styles.indicatorStats}>
+                          <Text style={[styles.indicatorValue, { color: '#00D4AA' }]}>{indicator.aiSignals}</Text>
+                          <Text style={styles.indicatorLabel}>AI</Text>
+                        </View>
+                        <View style={styles.indicatorStats}>
+                          <Text style={[styles.indicatorValue, { 
+                            color: indicator.confidence > 85 ? '#10B981' : indicator.confidence > 75 ? '#F59E0B' : '#EF4444' 
+                          }]}>{indicator.confidence}%</Text>
+                          <Text style={styles.indicatorLabel}>Confidence</Text>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
                 </View>
               )}
-            </View>
-            {activePairs && activePairs.length > 0 && (
-              <View style={styles.pairRotationInfo}>
-                <Text style={styles.rotationInfoText}>
-                  🔄 Signals from rotating pairs: {activePairs.map(p => p.symbol).join(' • ')}
-                </Text>
+              {/* AI Enhanced Signals */}
+              {aiEnhancedSignals.length > 0 && (
+                <View style={styles.section}>
+                  <View style={styles.sectionHeader}>
+                    <Sparkles color="#00D4AA" size={20} />
+                    <Text style={styles.sectionTitle}>AI Enhanced Signals</Text>
+                    <View style={styles.aiIndicator}>
+                      <Bot color="#00D4AA" size={14} />
+                      <Text style={styles.aiIndicatorText}>{aiEnhancedSignals.length}</Text>
+                    </View>
+                  </View>
+                  {aiEnhancedSignals.slice(0, 5).map((signal: any, index: number) => (
+                    <MLSignalCard 
+                      key={`ai-${signal.id}-${index}`}
+                      signal={signal}
+                    />
+                  ))}
+                </View>
+              )}
+              
+              {/* High Accuracy Signals */}
+              {highAccuracySignals.length > 0 && (
+                <View style={styles.section}>
+                  <View style={styles.sectionHeader}>
+                    <Target color="#10B981" size={20} />
+                    <Text style={styles.sectionTitle}>Premium Signals (90%+ Accuracy)</Text>
+                  </View>
+                  {highAccuracySignals.slice(0, 5).map((signal: any, index: number) => (
+                    <MLSignalCard 
+                      key={`high-${signal.id}-${index}`}
+                      signal={signal}
+                    />
+                  ))}
+                </View>
+              )}
+              
+              {/* All ML Signals */}
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <TrendingUp color="#8B5CF6" size={20} />
+                  <Text style={styles.sectionTitle}>All ML Trading Signals</Text>
+                  {performance && (
+                    <View style={styles.performanceIndicator}>
+                      <Text style={styles.performanceText}>
+                        {signals.length} Total • {performance.overallAccuracy.toFixed(1)}% Accuracy
+                      </Text>
+                    </View>
+                  )}
+                </View>
+                {signals.length > 0 ? (
+                  signals.map((signal: any, index: number) => (
+                    <MLSignalCard 
+                      key={`${signal.id}-${index}`}
+                      signal={signal}
+                    />
+                  ))
+                ) : (
+                  <View style={styles.noDataContainer}>
+                    <Brain color="#6B7280" size={32} />
+                    <Text style={styles.noDataText}>AI Analyzing Market Data</Text>
+                    <Text style={styles.noDataSubtext}>Advanced ML models processing market signals...</Text>
+                    <ActivityIndicator size="small" color="#00D4AA" style={styles.loadingIndicator} />
+                  </View>
+                )}
               </View>
-            )}
-            {signals.length > 0 ? (
-              signals.map((signal: any, index: number) => (
-                <MLSignalCard 
-                  key={`${signal.id}-${index}`}
-                  signal={signal}
-                />
-              ))
-            ) : (
-              <View style={styles.noDataContainer}>
-                <Brain color="#6B7280" size={32} />
-                <Text style={styles.noDataText}>AI Reading Market Data</Text>
-                <Text style={styles.noDataSubtext}>DeepSeek AI analyzing Binance & Forex markets...</Text>
-                <ActivityIndicator size="small" color="#00D4AA" style={styles.loadingIndicator} />
+            </>
+          )}
+          
+          {selectedTab === 'models' && (
+            <>
+
+              {/* AI Enhanced Models */}
+              {aiModels.length > 0 && (
+                <View style={styles.section}>
+                  <View style={styles.sectionHeader}>
+                    <Sparkles color="#00D4AA" size={20} />
+                    <Text style={styles.sectionTitle}>AI Enhanced Models</Text>
+                    <TouchableOpacity 
+                      onPress={() => retrainModels()}
+                      style={styles.retrainButton}
+                      disabled={loading}
+                    >
+                      <RefreshCw color={loading ? "#6B7280" : "#8B5CF6"} size={16} />
+                      <Text style={[styles.retrainButtonText, loading && { color: '#6B7280' }]}>Retrain</Text>
+                    </TouchableOpacity>
+                  </View>
+                  {aiModels.map((model: any, index: number) => (
+                    <MLModelCard 
+                      key={`ai-${model.id}-${index}`}
+                      model={model}
+                    />
+                  ))}
+                </View>
+              )}
+              
+              {/* All Active ML Models */}
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <Activity color="#8B5CF6" size={20} />
+                  <Text style={styles.sectionTitle}>All Active Models</Text>
+                  <View style={styles.modelStats}>
+                    <Text style={styles.modelStatsText}>{activeModels.length} Active</Text>
+                  </View>
+                </View>
+                {activeModels.length > 0 ? (
+                  activeModels.map((model: any, index: number) => (
+                    <MLModelCard 
+                      key={`${model.id}-${index}`}
+                      model={model}
+                    />
+                  ))
+                ) : (
+                  <View style={styles.noDataContainer}>
+                    <Cpu color="#6B7280" size={32} />
+                    <Text style={styles.noDataText}>No Active Models</Text>
+                    <Text style={styles.noDataSubtext}>Models are being initialized...</Text>
+                    {loading && <ActivityIndicator size="small" color="#8B5CF6" style={styles.loadingIndicator} />}
+                  </View>
+                )}
               </View>
-            )}
-          </View>
+            </>
+          )}
+          
+          {selectedTab === 'performance' && (
+            <>
+              {/* Performance Overview */}
+              <MLPerformanceCard 
+                performance={performance}
+                loading={loading}
+              />
+            </>
+          )}
+          
+          {selectedTab === 'config' && (
+            <>
+              {/* ML Configuration */}
+              <MLConfigCard 
+                config={{
+                  ...config,
+                  maxPairs: 5,
+                  pairRotationInterval: 90000
+                }}
+                onConfigUpdate={updateConfig}
+                onRetrain={retrainModels}
+              />
+            </>
+          )}
+
+
           
           <View style={styles.bottomPadding} />
         </ScrollView>
@@ -655,5 +713,133 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#8B5CF6',
+  },
+  // New Professional Styles
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  processingIndicator: {
+    marginLeft: 8,
+  },
+  refreshButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: 'rgba(139, 92, 246, 0.1)',
+  },
+  spinning: {
+    transform: [{ rotate: '360deg' }],
+  },
+  statsOverview: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 16,
+    paddingHorizontal: 4,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: 'rgba(31, 41, 55, 0.8)',
+    borderRadius: 12,
+    padding: 12,
+    marginHorizontal: 4,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(75, 85, 99, 0.3)',
+  },
+  statIcon: {
+    marginBottom: 8,
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: 'rgba(139, 92, 246, 0.1)',
+  },
+  tabNavigation: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(31, 41, 55, 0.6)',
+    borderRadius: 12,
+    padding: 4,
+    marginTop: 16,
+  },
+  tabButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    gap: 6,
+  },
+  activeTab: {
+    backgroundColor: '#8B5CF6',
+  },
+  tabText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#9CA3AF',
+  },
+  activeTabText: {
+    color: '#FFFFFF',
+  },
+  indicatorGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 20,
+    gap: 12,
+  },
+  indicatorCard: {
+    backgroundColor: '#1F2937',
+    borderRadius: 12,
+    padding: 12,
+    minWidth: '45%',
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#374151',
+  },
+  indicatorSymbol: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  indicatorStats: {
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  indicatorValue: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#8B5CF6',
+  },
+  indicatorLabel: {
+    fontSize: 10,
+    color: '#9CA3AF',
+    marginTop: 2,
+  },
+  retrainButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(139, 92, 246, 0.2)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    gap: 4,
+  },
+  retrainButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#8B5CF6',
+  },
+  modelStats: {
+    backgroundColor: 'rgba(139, 92, 246, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  modelStatsText: {
+    fontSize: 10,
+    color: '#8B5CF6',
+    fontWeight: '500',
   },
 });
