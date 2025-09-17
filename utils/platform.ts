@@ -104,21 +104,52 @@ export const PlatformUtils = {
     }
   },
   
-  // Platform-specific fetch with timeout
+  // Platform-specific fetch with timeout and Android compatibility
   fetchWithTimeout: async (url: string, options: RequestInit = {}, timeout: number = 10000) => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
     
     try {
-      const response = await fetch(url, {
+      // Android-specific headers and options
+      const androidSafeOptions: RequestInit = {
         ...options,
-        signal: controller.signal
-      });
+        signal: controller.signal,
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'User-Agent': Platform.OS === 'android' ? 'ReactNative/Android' : 'ReactNative/Web',
+          ...options.headers,
+        },
+        // Android sometimes needs explicit mode
+        mode: Platform.OS === 'android' ? 'cors' : (options.mode || 'cors'),
+        // Disable cache for real-time data
+        cache: 'no-cache',
+      };
+      
+      const response = await fetch(url, androidSafeOptions);
       clearTimeout(timeoutId);
       return response;
     } catch (error) {
       clearTimeout(timeoutId);
+      console.warn(`Fetch failed for ${url}:`, error);
       throw error;
+    }
+  },
+  
+  // Safe fetch with fallback for Android
+  safeFetch: async (url: string, options: RequestInit = {}, timeout: number = 8000) => {
+    try {
+      return await PlatformUtils.fetchWithTimeout(url, options, timeout);
+    } catch (error) {
+      console.warn(`Safe fetch failed for ${url}, using fallback:`, error);
+      // Return a mock response that indicates failure but doesn't crash
+      return {
+        ok: false,
+        status: 0,
+        statusText: 'Network Error',
+        json: async () => ({}),
+        text: async () => '',
+      } as Response;
     }
   },
   
@@ -221,5 +252,5 @@ export const PlatformUtils = {
 export const { isWeb, isMobile, isIOS, isAndroid } = PlatformUtils;
 
 // Export commonly used functions
-export const { getTimeout, getInterval, hapticFeedback, vibrate } = PlatformUtils;
+export const { getTimeout, getInterval, hapticFeedback, vibrate, fetchWithTimeout, safeFetch } = PlatformUtils;
 export const { storage } = PlatformUtils;
