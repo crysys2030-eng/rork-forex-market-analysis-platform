@@ -11,6 +11,7 @@ import { TrendingUp, TrendingDown, Activity, Zap, Brain, Target } from 'lucide-r
 import { useScalpingAI } from '@/hooks/useScalpingAI';
 import { useMLTrading } from '@/hooks/useMLTrading';
 import { useRealTimeData } from '@/hooks/useRealTimeData';
+import { CurrencySearchButton } from './CurrencySearchButton';
 
 interface ActivePairData {
   symbol: string;
@@ -230,6 +231,9 @@ export const ActiveTradingDashboard: React.FC = () => {
           })}
         </Text>
       </View>
+
+      {/* Currency Search */}
+      <CurrencySearchButton />
 
       {/* Metrics Cards */}
       <View style={styles.metricsGrid}>
